@@ -3,7 +3,9 @@ package animation
 // Code to support mapping from logical 'universes' to physical pixel layout.
 
 import (
+	"fmt"
 	"image/color"
+	"math"
 )
 
 // {board, strand, pixel} tuple identifying a physical pixel
@@ -86,6 +88,16 @@ func (m *Mapping) AddUniverse(name string, ranges []PhysicalRange) bool {
 	return true
 }
 
+// Get the internal ID associated with the given universe name. Returns error
+// and large invalid ID if universe name is not found
+func (m *Mapping) IdForUniverse(universeName string) (uint, error) {
+	id, ok := m.universeNameToId[universeName]
+	if !ok {
+		return math.MaxUint32, fmt.Errorf("\"%s\" is not a known universe", universeName)
+	}
+	return uint(id), nil
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -94,9 +106,28 @@ func min(a, b int) int {
 	}
 }
 
+// UpdateUniverse updates physical pixel color values for pixels corresponding
+// to the provided universe.
 func (m *Mapping) UpdateUniverse(universeId uint, universeData []color.RGBA) {
 	u := m.universes[universeId]
 	for idx, l := range u {
 		m.physBuf[l.board][l.strand][l.pixel] = universeData[idx]
 	}
+}
+
+// GetStrandData returns color data for a physical strand. The slice returned
+// references the master buffer for the strand and so can be changed by further
+// calls to UpdateUniverse. If the caller needs to retain the data, a copy
+// should be made
+// The strand in question is identified by the board and strand indices provided.
+// Returns an empty slice and an error if an invalid strand is specified
+func (m *Mapping) GetStrandData(board, strand uint) ([]color.RGBA, error) {
+	if int(board) >= len(m.physBuf) {
+		return nil, fmt.Errorf("%d is an invalid board index", board)
+	}
+	if int(strand) >= len(m.physBuf[board]) {
+		return nil, fmt.Errorf("%d is an invalid strand number for board %d",
+			strand, board)
+	}
+	return m.physBuf[board][strand], nil
 }
