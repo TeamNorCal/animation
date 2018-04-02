@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Transition from one solid color (applied to all elements) to another solic
+// Transition from one solid color (applied to all elements) to another solid
 // color
 type InterpolateSolid struct {
 	startColor, endColor color.RGBA
