@@ -98,13 +98,6 @@ func (m *Mapping) IDForUniverse(universeName string) (uint, error) {
 	return uint(id), nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // UpdateUniverse updates physical pixel color values for pixels corresponding
 // to the provided universe.
 func (m *Mapping) UpdateUniverse(universeID uint, universeData []color.RGBA) {
