@@ -277,3 +277,36 @@ func TestScheduleAfterPlusDelay(t *testing.T) {
 		t.Error("Not done at time 4")
 	}
 }
+
+func TestScheduleAfterBadStepId(t *testing.T) {
+	ta1 := testAnimation(1)
+	ta2 := testAnimation(31)
+	s2 := Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	// Step waiting on invalid step should be ignored with warning
+	s1 := Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 9}
+	seq := Sequence{[]Step{s1, s2}}
+	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
+	now := time.Unix(0, 0)
+	sr.InitSequence(seq, now)
+
+	for tick := 0; tick < 1; tick++ {
+		frameTime := now.Add(time.Duration(tick) * time.Millisecond)
+		if sr.ProcessFrame(frameTime) {
+			t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
+		}
+		if sr.UniverseData(1)[0].R != 0 {
+			t.Error("Invalid contingent effect ran")
+		}
+		if sr.UniverseData(3)[0].R == 0 {
+			t.Error("Immediate effect didn't run")
+		}
+	}
+
+	if !sr.ProcessFrame(now.Add(1 * time.Millisecond)) {
+		t.Error("Not done at time 1")
+	}
+
+	if sr.UniverseData(1)[0].R != 0 {
+		t.Error("Contingent effect ran")
+	}
+}
