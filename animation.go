@@ -1,6 +1,6 @@
 /*
-Contains implementations of animation routines, generating buffers representing
-LED color values for consecutive frames.
+Package animation contains implementations of animation routines, generating
+buffers representing LED color values for consecutive frames.
 */
 package animation
 

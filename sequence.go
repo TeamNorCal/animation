@@ -11,22 +11,24 @@ import (
 )
 
 const (
-	DEFAULT_QUEUE_SIZE = 10
+	// DefaultQueueSize is the initial size of arrays representing queues
+	DefaultQueueSize = 10
 )
 
-// A sequencing step. Contains information about the effect(s) to perform
-// and the universe[s] being targetted.
+// Step is a sequencing step. Contains information about the effect(s) to
+// perform and the universe[s] being targetted.
 // Can be gated on completion of another referenced step, and/or delayed by
 // an amount of time. If both gating step and delay are specified, the delay
 // will be applied after the gating step completes.
 type Step struct {
-	UniverseId     uint          // The universe to which the step is applied
+	UniverseID     uint          // The universe to which the step is applied
 	Effect         Animation     // The animation effect to play
 	OnCompletionOf int           // ID of step that must complete before this step commences
 	Delay          time.Duration // Delay before starting step [after prior step completes if set]
-	StepId         int           // ID of step, to allow reference by another step. Must be non-0 to be honored
+	StepID         int           // ID of step, to allow reference by another step. Must be non-0 to be honored
 }
 
+// Sequence encapsulates an animation sequence
 type Sequence struct {
 	Steps []Step
 }
@@ -55,32 +57,32 @@ type SequenceRunner struct {
 	buffers          [][]color.RGBA      // Buffers to hold universe data
 }
 
-var LOG *log.Logger = log.New(os.Stdout, "SEQUENCE", 0)
+var logger = log.New(os.Stdout, "SEQUENCE", 0)
 
-// Create a SequenceRunner for the provided sequence with the specified universe
-// sizes. These size indicate the number of pixels in each universe, with the
-// universe ID being the index into the array. (Universe IDs are expected to
-// start at 0 and be consecutive.)
+// NewSequenceRunner creates a SequenceRunner for the provided sequence with the
+// specified universe sizes. These size indicate the number of pixels in each
+// universe, with the universe ID being the index into the array. (Universe IDs
+// are expected to start at 0 and be consecutive.)
 func NewSequenceRunner(universeSizes []uint) *SequenceRunner {
 	// Create the framework of the SequenceRunner
 	activeByUniverse := make([][]*Step, len(universeSizes))
 	buffers := make([][]color.RGBA, len(universeSizes))
 	for idx, size := range universeSizes {
-		activeByUniverse[idx] = make([]*Step, DEFAULT_QUEUE_SIZE)
+		activeByUniverse[idx] = make([]*Step, DefaultQueueSize)
 		buffers[idx] = make([]color.RGBA, size)
 	}
 	sr := &SequenceRunner{
-		make([]stepAndTime, DEFAULT_QUEUE_SIZE),
-		make([]stepAndGatingStep, DEFAULT_QUEUE_SIZE),
+		make([]stepAndTime, DefaultQueueSize),
+		make([]stepAndGatingStep, DefaultQueueSize),
 		activeByUniverse,
 		buffers}
 
 	return sr
 }
 
-func findStep(steps []Step, stepId int) *Step {
+func findStep(steps []Step, stepID int) *Step {
 	for _, step := range steps {
-		if step.StepId == stepId {
+		if step.StepID == stepID {
 			return &step
 		}
 	}
@@ -113,15 +115,15 @@ func (sr *SequenceRunner) InitSequence(seq Sequence, now time.Time) {
 		if step.OnCompletionOf != 0 {
 			waitingOnStep := findStep(seq.Steps, step.OnCompletionOf)
 			if waitingOnStep != nil {
-				sr.awaitingStep = append(sr.awaitingStep, stepAndGatingStep{waitingOnStep.StepId, pstep})
+				sr.awaitingStep = append(sr.awaitingStep, stepAndGatingStep{waitingOnStep.StepID, pstep})
 			} else {
-				LOG.Printf("WARNING: Could not find step %d which step %v is waiting on. This step will be ignored",
+				logger.Printf("WARNING: Could not find step %d which step %v is waiting on. This step will be ignored",
 					step.OnCompletionOf, step)
 			}
 		} else if step.Delay > 0 {
 			sr.scheduleAt(pstep, now.Add(step.Delay))
 		} else {
-			sr.activeByUniverse[step.UniverseId] = append(sr.activeByUniverse[step.UniverseId], pstep)
+			sr.activeByUniverse[step.UniverseID] = append(sr.activeByUniverse[step.UniverseID], pstep)
 		}
 	}
 }
@@ -151,13 +153,13 @@ func (sr *SequenceRunner) scheduleAt(s *Step, runAt time.Time) {
 // Check for steps that are waiting on another step to complete.
 // 'now' is the time that should be considered to be the current time
 func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
-	uniSteps := sr.activeByUniverse[completed.UniverseId]
+	uniSteps := sr.activeByUniverse[completed.UniverseID]
 	if len(uniSteps) > 0 && uniSteps[0] == completed {
-		sr.activeByUniverse[completed.UniverseId] = deleteStep(uniSteps, 0)
+		sr.activeByUniverse[completed.UniverseID] = deleteStep(uniSteps, 0)
 	}
 	for idx := 0; idx < len(sr.awaitingStep); {
 		waiting := sr.awaitingStep[idx]
-		if waiting.waitingOn == completed.StepId {
+		if waiting.waitingOn == completed.StepID {
 			s := waiting.toRun
 			if s.Delay > 0 {
 				// Schedule to run after delay
@@ -165,7 +167,7 @@ func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 				sr.scheduleAt(s, runAt)
 			} else {
 				// Run immediately
-				sr.activeByUniverse[s.UniverseId] = append(sr.activeByUniverse[s.UniverseId], s)
+				sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
 			}
 			// Delete this from the list of waiting steps (and don't increment index)
 			sr.awaitingStep = deleteSAGS(sr.awaitingStep, idx)
@@ -183,7 +185,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 		if now.After(waiting.runAt) {
 			// Time to run it!
 			s := waiting.toRun
-			sr.activeByUniverse[s.UniverseId] = append(sr.activeByUniverse[s.UniverseId], s)
+			sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
 			// Delete this from the list of waiting steps (and don't increment index)
 			sr.awaitingTime = deleteSAT(sr.awaitingTime, idx)
 		} else {
@@ -192,20 +194,20 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 	}
 }
 
-// Generate frame data corresponding to the specified time (which should be
-// monotonically increasing with each call)
+// ProcessFrame generates frame data corresponding to the specified time (which
+// should be monotonically increasing with each call)
 // Return value indicates whether the sequence is complete.
 func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	done = true
 	sr.checkScheduledTasks(now)
-	for universeId, universe := range sr.activeByUniverse {
+	for universeID, universe := range sr.activeByUniverse {
 		if len(universe) > 0 {
 			// We have an active step on this universe
 			s := universe[0]
 			// ...so we're not done yet
 			done = false
 			// Process the animation for the universe
-			effectDone := s.Effect.Frame(sr.buffers[universeId], now)
+			effectDone := s.Effect.Frame(sr.buffers[universeID], now)
 			if effectDone {
 				sr.handleStepComplete(s, now)
 			}
@@ -217,8 +219,8 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	return
 }
 
-// Get current data for the specified universe. This data is updated by calling
-// ProcessFrame for the universe
-func (sr *SequenceRunner) UniverseData(UniverseId uint) []color.RGBA {
-	return sr.buffers[UniverseId]
+// UniverseData gets current data for the specified universe. This data is
+// updated by calling ProcessFrame for the universe
+func (sr *SequenceRunner) UniverseData(UniverseID uint) []color.RGBA {
+	return sr.buffers[UniverseID]
 }

@@ -25,9 +25,9 @@ func (a *multiRunAnimation) Frame(buf []color.RGBA, frameTime time.Time) bool {
 }
 
 func TestDeleteStep(t *testing.T) {
-	s1 := Step{UniverseId: 1}
-	s2 := Step{UniverseId: 2}
-	s3 := Step{UniverseId: 3}
+	s1 := Step{UniverseID: 1}
+	s2 := Step{UniverseID: 2}
+	s3 := Step{UniverseID: 3}
 	stepsArr := [3]*Step{&s1, &s2, &s3}
 	steps := stepsArr[:]
 	no0 := deleteStep(steps, 0)
@@ -41,16 +41,16 @@ func TestDeleteStep(t *testing.T) {
 
 func TestSimpleSingleSequence(t *testing.T) {
 	t.SkipNow()
-	const universeId uint = 3
+	const universeID uint = 3
 	ta := testAnimation(1)
-	s := Step{UniverseId: universeId, Effect: &ta}
+	s := Step{UniverseID: universeID, Effect: &ta}
 	seq := Sequence{[]Step{s}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 10})
 	startTime := time.Unix(0, 0)
 	sr.InitSequence(seq, startTime)
 
 	// Check for right-sized empty buffer
-	buf := sr.UniverseData(universeId)
+	buf := sr.UniverseData(universeID)
 	if len(buf) != 10 {
 		t.Errorf("Unexpected buffer size %d", len(buf))
 	}
@@ -69,7 +69,7 @@ func TestSimpleSingleSequence(t *testing.T) {
 
 	// Check for updated data
 	count := uint8(1)
-	buf = sr.UniverseData(universeId)
+	buf = sr.UniverseData(universeID)
 	if len(buf) != 10 {
 		t.Errorf("Unexpected buffer size %d", len(buf))
 	}
@@ -89,9 +89,9 @@ func TestSimpleSingleSequence(t *testing.T) {
 
 func TestTwoSimpleSequences(t *testing.T) {
 	ta1 := testAnimation(1)
-	s1 := Step{UniverseId: 3, Effect: &ta1}
+	s1 := Step{UniverseID: 3, Effect: &ta1}
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseId: 1, Effect: &ta2}
+	s2 := Step{UniverseID: 1, Effect: &ta2}
 	seq := Sequence{[]Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 6, 1, 10})
 	startTime := time.Unix(0, 0)
@@ -152,9 +152,9 @@ func TestTwoSimpleSequences(t *testing.T) {
 
 func TestMultiRun(t *testing.T) {
 	ta1 := multiRunAnimation(3)
-	s1 := Step{UniverseId: 3, Effect: &ta1}
+	s1 := Step{UniverseID: 3, Effect: &ta1}
 	ta2 := multiRunAnimation(1)
-	s2 := Step{UniverseId: 0, Effect: &ta2}
+	s2 := Step{UniverseID: 0, Effect: &ta2}
 	seq := Sequence{[]Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
@@ -176,9 +176,9 @@ func TestMultiRun(t *testing.T) {
 
 func TestDelay(t *testing.T) {
 	ta1 := testAnimation(1)
-	s1 := Step{UniverseId: 3, Effect: &ta1, Delay: 9 * time.Millisecond}
+	s1 := Step{UniverseID: 3, Effect: &ta1, Delay: 9 * time.Millisecond}
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseId: 1, Effect: &ta2}
+	s2 := Step{UniverseID: 1, Effect: &ta2}
 	seq := Sequence{[]Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 6, 1, 10})
 	now := time.Unix(0, 0)
@@ -212,8 +212,8 @@ func TestDelay(t *testing.T) {
 func TestScheduleAfter(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseId: 3, Effect: &ta2, StepId: 2}
-	s1 := Step{UniverseId: 1, Effect: &ta1, OnCompletionOf: 2}
+	s2 := Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	s1 := Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2}
 	seq := Sequence{[]Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
@@ -247,8 +247,8 @@ func TestScheduleAfter(t *testing.T) {
 func TestScheduleAfterPlusDelay(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseId: 3, Effect: &ta2, StepId: 2}
-	s1 := Step{UniverseId: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Millisecond * 2}
+	s2 := Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	s1 := Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Millisecond * 2}
 	seq := Sequence{[]Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)

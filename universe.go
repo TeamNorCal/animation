@@ -13,7 +13,7 @@ type location struct {
 	board, strand, pixel uint
 }
 
-// Structure to capture mapping from logical to physical layer
+// Mapping captures mapping from logical to physical layer
 type Mapping struct {
 	// Buffer of data mapping to physical pixels
 	// Three levels of indexing:
@@ -29,15 +29,15 @@ type Mapping struct {
 	universes [][]location
 
 	// Mapping from universe name to universe ID
-	universeNameToId map[string]int
+	universeIDuniverseNameToID map[string]int
 }
 
-// Defines a range of physical pixels within asingle strand
+// PhysicalRange defines a range of physical pixels within asingle strand
 type PhysicalRange struct {
 	board, strand, startPixel, size uint
 }
 
-// Create a new Mapping, using the provided dimensions.
+// NewMapping creates a new Mapping, using the provided dimensions.
 // Size of outer array governs the number of controller boards
 // Sizes of inner arrays govern the number of strands within each board
 // Values in inner array govern the number of pixels in the strand
@@ -55,7 +55,7 @@ func NewMapping(dimension [][]int) Mapping {
 	return m
 }
 
-// Add a universe mapping with the given name.
+// AddUniverse adds a universe mapping with the given name.
 // The provided set of physical ranges identifies the set of physical pixels
 // corresponding to the universe. The order of physical pixels presented defines
 // the logical ordering of the universe, and the size of the universe is equal
@@ -63,7 +63,7 @@ func NewMapping(dimension [][]int) Mapping {
 // Returns true if the universe was successfully added; returns false if the
 // universe name already exists or a specified physical pixel doesn't exist.
 func (m *Mapping) AddUniverse(name string, ranges []PhysicalRange) bool {
-	if _, exists := m.universeNameToId[name]; exists {
+	if _, exists := m.universeIDuniverseNameToID[name]; exists {
 		return false
 	}
 	// Figure out the size
@@ -84,14 +84,14 @@ func (m *Mapping) AddUniverse(name string, ranges []PhysicalRange) bool {
 
 	// Add the universe to the structure
 	m.universes = append(m.universes, locs)
-	m.universeNameToId[name] = len(m.universes) - 1
+	m.universeIDuniverseNameToID[name] = len(m.universes) - 1
 	return true
 }
 
-// Get the internal ID associated with the given universe name. Returns error
-// and large invalid ID if universe name is not found
-func (m *Mapping) IdForUniverse(universeName string) (uint, error) {
-	id, ok := m.universeNameToId[universeName]
+// IDForUniverse gets the internal ID associated with the given universe name.
+// Returns error and large invalid ID if universe name is not found
+func (m *Mapping) IDForUniverse(universeName string) (uint, error) {
+	id, ok := m.universeIDuniverseNameToID[universeName]
 	if !ok {
 		return math.MaxUint32, fmt.Errorf("\"%s\" is not a known universe", universeName)
 	}
@@ -101,15 +101,14 @@ func (m *Mapping) IdForUniverse(universeName string) (uint, error) {
 func min(a, b int) int {
 	if a < b {
 		return a
-	} else {
-		return b
 	}
+	return b
 }
 
 // UpdateUniverse updates physical pixel color values for pixels corresponding
 // to the provided universe.
-func (m *Mapping) UpdateUniverse(universeId uint, universeData []color.RGBA) {
-	u := m.universes[universeId]
+func (m *Mapping) UpdateUniverse(universeID uint, universeData []color.RGBA) {
+	u := m.universes[universeID]
 	for idx, l := range u {
 		m.physBuf[l.board][l.strand][l.pixel] = universeData[idx]
 	}
