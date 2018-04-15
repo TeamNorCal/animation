@@ -33,22 +33,22 @@ func TestValidUniverse(t *testing.T) {
 	mapping := NewMapping(dimension)
 
 	if !mapping.AddUniverse("one", []PhysicalRange{
-		PhysicalRange{board: 0, strand: 2, startPixel: 3, size: 4},
-		PhysicalRange{board: 1, strand: 2, startPixel: 61, size: 3},
-		PhysicalRange{board: 1, strand: 3, startPixel: 0, size: 5}}) {
+		PhysicalRange{Board: 0, Strand: 2, StartPixel: 3, Size: 4},
+		PhysicalRange{Board: 1, Strand: 2, StartPixel: 61, Size: 3},
+		PhysicalRange{Board: 1, Strand: 3, StartPixel: 0, Size: 5}}) {
 		t.Error("Failed to add universe one")
 	}
 
 	if !mapping.AddUniverse("two", []PhysicalRange{
-		PhysicalRange{board: 1, strand: 0, startPixel: 0, size: 1},
-		PhysicalRange{board: 0, strand: 0, startPixel: 0, size: 10},
-		PhysicalRange{board: 2, strand: 1, startPixel: 1, size: 3}}) {
+		PhysicalRange{Board: 1, Strand: 0, StartPixel: 0, Size: 1},
+		PhysicalRange{Board: 0, Strand: 0, StartPixel: 0, Size: 10},
+		PhysicalRange{Board: 2, Strand: 1, StartPixel: 1, Size: 3}}) {
 		t.Error("Failed to add universe two")
 	}
 
 	if !mapping.AddUniverse("three", []PhysicalRange{
-		PhysicalRange{board: 0, strand: 1, startPixel: 3, size: 1},
-		PhysicalRange{board: 1, strand: 2, startPixel: 57, size: 4}}) {
+		PhysicalRange{Board: 0, Strand: 1, StartPixel: 3, Size: 1},
+		PhysicalRange{Board: 1, Strand: 2, StartPixel: 57, Size: 4}}) {
 		t.Error("Failed to add universe three")
 	}
 

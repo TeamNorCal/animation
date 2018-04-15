@@ -34,7 +34,7 @@ type Mapping struct {
 
 // PhysicalRange defines a range of physical pixels within asingle strand
 type PhysicalRange struct {
-	board, strand, startPixel, size uint
+	Board, Strand, StartPixel, Size uint
 }
 
 // NewMapping creates a new Mapping, using the provided dimensions.
@@ -69,15 +69,15 @@ func (m *Mapping) AddUniverse(name string, ranges []PhysicalRange) bool {
 	// Figure out the size
 	size := uint(0)
 	for _, r := range ranges {
-		size += r.size
+		size += r.Size
 	}
 	// Allocate locations array for universe
 	locs := make([]location, size)
 	// Populate locations array from pixel ranges
 	unidx := 0
 	for _, r := range ranges {
-		for idx := r.startPixel; idx < r.startPixel+r.size; idx++ {
-			locs[unidx] = location{r.board, r.strand, idx}
+		for idx := r.StartPixel; idx < r.StartPixel+r.Size; idx++ {
+			locs[unidx] = location{r.Board, r.Strand, idx}
 			unidx++
 		}
 	}
