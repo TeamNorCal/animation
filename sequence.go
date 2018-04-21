@@ -182,7 +182,7 @@ func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 	for idx := 0; idx < len(sr.awaitingTime); {
 		waiting := sr.awaitingTime[idx]
-		if now.After(waiting.runAt) {
+		if now.After(waiting.runAt) && waiting.toRun != nil {
 			// Time to run it!
 			s := waiting.toRun
 			sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
