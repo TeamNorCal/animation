@@ -4,7 +4,6 @@ package animation
 // higher-level transitions requiring model-level animation effects
 
 import (
-	"fmt"
 	"image/color"
 	"log"
 	"os"
