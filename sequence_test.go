@@ -43,8 +43,8 @@ func TestSimpleSingleSequence(t *testing.T) {
 	t.SkipNow()
 	const universeID uint = 3
 	ta := testAnimation(1)
-	s := Step{UniverseID: universeID, Effect: &ta}
-	seq := Sequence{[]Step{s}}
+	s := &Step{UniverseID: universeID, Effect: &ta}
+	seq := Sequence{[]*Step{s}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 10})
 	startTime := time.Unix(0, 0)
 	sr.InitSequence(seq, startTime)
@@ -89,10 +89,10 @@ func TestSimpleSingleSequence(t *testing.T) {
 
 func TestTwoSimpleSequences(t *testing.T) {
 	ta1 := testAnimation(1)
-	s1 := Step{UniverseID: 3, Effect: &ta1}
+	s1 := &Step{UniverseID: 3, Effect: &ta1}
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseID: 1, Effect: &ta2}
-	seq := Sequence{[]Step{s1, s2}}
+	s2 := &Step{UniverseID: 1, Effect: &ta2}
+	seq := Sequence{[]*Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 6, 1, 10})
 	startTime := time.Unix(0, 0)
 	sr.InitSequence(seq, startTime)
@@ -152,10 +152,10 @@ func TestTwoSimpleSequences(t *testing.T) {
 
 func TestMultiRun(t *testing.T) {
 	ta1 := multiRunAnimation(3)
-	s1 := Step{UniverseID: 3, Effect: &ta1}
+	s1 := &Step{UniverseID: 3, Effect: &ta1}
 	ta2 := multiRunAnimation(1)
-	s2 := Step{UniverseID: 0, Effect: &ta2}
-	seq := Sequence{[]Step{s1, s2}}
+	s2 := &Step{UniverseID: 0, Effect: &ta2}
+	seq := Sequence{[]*Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -176,10 +176,10 @@ func TestMultiRun(t *testing.T) {
 
 func TestDelay(t *testing.T) {
 	ta1 := testAnimation(1)
-	s1 := Step{UniverseID: 3, Effect: &ta1, Delay: 9 * time.Millisecond}
+	s1 := &Step{UniverseID: 3, Effect: &ta1, Delay: 9 * time.Millisecond}
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseID: 1, Effect: &ta2}
-	seq := Sequence{[]Step{s1, s2}}
+	s2 := &Step{UniverseID: 1, Effect: &ta2}
+	seq := Sequence{[]*Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 6, 1, 10})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -212,34 +212,45 @@ func TestDelay(t *testing.T) {
 func TestScheduleAfter(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseID: 3, Effect: &ta2, StepID: 2}
-	s1 := Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2}
-	seq := Sequence{[]Step{s1, s2}}
+	s2 := &Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	// Not using a delay is dicey because the execution order in a single clock cycle
+	// is unpredictable
+	s1 := &Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Duration(1 * time.Millisecond)}
+	seq := Sequence{[]*Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
 
-	for tick := 0; tick < 1; tick++ {
-		frameTime := now.Add(time.Duration(tick) * time.Millisecond)
-		if sr.ProcessFrame(frameTime) {
-			t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
-		}
-		if sr.UniverseData(1)[0].R != 0 {
-			t.Error("Contingent effect ran too early")
-		}
-		if sr.UniverseData(3)[0].R == 0 {
-			t.Error("Immediate effect didn't run")
-		}
+	if sr.UniverseData(1)[0].R != 0 {
+		t.Error("Data initialization failed to clear colors")
 	}
 
-	if sr.ProcessFrame(now.Add(1 * time.Millisecond)) {
+	// On the first tick only the first step should fire
+	tick := 0
+	frameTime := now.Add(time.Duration(tick))
+	if sr.ProcessFrame(frameTime) {
+		t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
+	}
+	if sr.UniverseData(1)[0].R != 0 {
+		t.Errorf("Contingent effect ran too early at tick %d", tick)
+	}
+	if sr.UniverseData(3)[0].R == 0 {
+		t.Errorf("Immediate effect didn't run at tick %d", tick)
+	}
+
+	tick += 2
+	if sr.ProcessFrame(now.Add(time.Duration(tick) * time.Millisecond)) {
 		t.Error("Done at time 1")
 	}
 	if sr.UniverseData(1)[0].R == 0 {
-		t.Error("Contingent effect didn't run at right time")
+		t.Errorf("Contingent effect didn't run at right time at tick %d", tick)
+	}
+	if sr.UniverseData(3)[0].R == 0 {
+		t.Errorf("Immediate effect weas cleared unexpectedly %d", tick)
 	}
 
-	if !sr.ProcessFrame(now.Add(2 * time.Millisecond)) {
+	tick += 2
+	if !sr.ProcessFrame(now.Add(time.Duration(tick) * time.Millisecond)) {
 		t.Error("Not done at time 2")
 	}
 }
@@ -247,9 +258,9 @@ func TestScheduleAfter(t *testing.T) {
 func TestScheduleAfterPlusDelay(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseID: 3, Effect: &ta2, StepID: 2}
-	s1 := Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Millisecond * 2}
-	seq := Sequence{[]Step{s1, s2}}
+	s2 := &Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	s1 := &Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Millisecond * 2}
+	seq := Sequence{[]*Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -281,10 +292,10 @@ func TestScheduleAfterPlusDelay(t *testing.T) {
 func TestScheduleAfterBadStepId(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	s2 := &Step{UniverseID: 3, Effect: &ta2, StepID: 2}
 	// Step waiting on invalid step should be ignored with warning
-	s1 := Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 9}
-	seq := Sequence{[]Step{s1, s2}}
+	s1 := &Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 9}
+	seq := Sequence{[]*Step{s1, s2}}
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
