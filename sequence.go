@@ -211,10 +211,10 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	done = true
 	sr.checkScheduledTasks(now)
-	fmt.Println("ProcessFrame for ", len(sr.activeByUniverse), " universes")
 	for universeID, universe := range sr.activeByUniverse {
+		fmt.Println("ProcessFrame for universe", universeID)
 		if len(universe) > 0 {
-			fmt.Println("universe", universeID, " active")
+			fmt.Println("universe", universeID, "active")
 			// We have an active step on this universe
 			s := universe[0]
 			// ...so we're not done yet
