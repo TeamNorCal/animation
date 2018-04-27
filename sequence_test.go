@@ -9,19 +9,22 @@ import (
 type testAnimation uint8
 type multiRunAnimation int
 
-func (a *testAnimation) Frame(buf []color.RGBA, frameTime time.Time) bool {
+func (a *testAnimation) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, done bool) {
+
+	output = buf
+
 	//	fmt.Printf("In Frame for %v buf len %d, time %v\n", *a, len(buf), frameTime.Nanosecond()/1000)
 	count := uint8(*a)
 	for idx := range buf {
-		buf[idx] = color.RGBA{count, count + 1, count + 2, 0x00}
+		output[idx] = color.RGBA{count, count + 1, count + 2, 0x00}
 		count += 3
 	}
-	return true
+	return output, true
 }
 
-func (a *multiRunAnimation) Frame(buf []color.RGBA, frameTime time.Time) bool {
+func (a *multiRunAnimation) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, done bool) {
 	*a--
-	return *a <= 0
+	return buf, *a <= 0
 }
 
 func TestDeleteStep(t *testing.T) {
@@ -32,15 +35,14 @@ func TestDeleteStep(t *testing.T) {
 	steps := stepsArr[:]
 	no0 := deleteStep(steps, 0)
 	if len(no0) != 2 || no0[0] != &s2 || no0[1] != &s3 {
-		t.Errorf("Delete 0 not as expected: %v", no0)
+		t.Fatalf("Delete 0 not as expected: %v", no0)
 	}
 	if stepsArr != [3]*Step{&s2, &s3, nil} {
-		t.Errorf("Underlying array not as expected after delete 0: %v", no0)
+		t.Fatalf("Underlying array not as expected after delete 0: %v", no0)
 	}
 }
 
 func TestSimpleSingleSequence(t *testing.T) {
-	t.SkipNow()
 	const universeID uint = 3
 	ta := testAnimation(1)
 	s := &Step{UniverseID: universeID, Effect: &ta}
@@ -52,38 +54,38 @@ func TestSimpleSingleSequence(t *testing.T) {
 	// Check for right-sized empty buffer
 	buf := sr.UniverseData(universeID)
 	if len(buf) != 10 {
-		t.Errorf("Unexpected buffer size %d", len(buf))
+		t.Fatalf("Unexpected buffer size %d", len(buf))
 	}
 	zero := color.RGBA{0, 0, 0, 0}
 	for idx, p := range buf {
 		if p != zero {
-			t.Errorf("Pixel %d not 0 (%x)", idx, p)
+			t.Fatalf("Pixel %d not 0 (%x)", idx, p)
 		}
 	}
 
 	// Call the effect to generate data
 	done := sr.ProcessFrame(startTime)
 	if done {
-		t.Error("Done on first frame")
+		t.Fatal("Done on first frame")
 	}
 
 	// Check for updated data
 	count := uint8(1)
 	buf = sr.UniverseData(universeID)
 	if len(buf) != 10 {
-		t.Errorf("Unexpected buffer size %d", len(buf))
+		t.Fatalf("Unexpected buffer size %d", len(buf))
 	}
 	for idx, p := range buf {
 		expected := color.RGBA{count, count + 1, count + 2, 0x00}
 		if p != expected {
-			t.Errorf("Pixel %d value (%v) not expected (%v)", idx, p, expected)
+			t.Fatalf("Pixel %d value (%v) not expected (%v)", idx, p, expected)
 		}
 		count += 3
 	}
 
 	done = sr.ProcessFrame(startTime.Add(time.Millisecond))
 	if !done {
-		t.Error("Not done on second call to ProcessFrame")
+		t.Fatal("Not done on second call to ProcessFrame")
 	}
 }
 
@@ -100,28 +102,28 @@ func TestTwoSimpleSequences(t *testing.T) {
 	// Check for right-sized empty buffer
 	buf := sr.UniverseData(1)
 	if len(buf) != 6 {
-		t.Errorf("Unexpected buffer size %d", len(buf))
+		t.Fatalf("Unexpected buffer size %d", len(buf))
 	}
 	zero := color.RGBA{0, 0, 0, 0}
 	for idx, p := range buf {
 		if p != zero {
-			t.Errorf("Pixel %d not 0 (%x)", idx, p)
+			t.Fatalf("Pixel %d not 0 (%x)", idx, p)
 		}
 	}
 	buf = sr.UniverseData(3)
 	if len(buf) != 10 {
-		t.Errorf("Unexpected buffer size %d", len(buf))
+		t.Fatalf("Unexpected buffer size %d", len(buf))
 	}
 	for idx, p := range buf {
 		if p != zero {
-			t.Errorf("Pixel %d not 0 (%x)", idx, p)
+			t.Fatalf("Pixel %d not 0 (%x)", idx, p)
 		}
 	}
 
 	// Call the effect to generate data
 	done := sr.ProcessFrame(startTime)
 	if done {
-		t.Error("Done on first frame")
+		t.Fatal("Done on first frame")
 	}
 
 	// Check for updated data
@@ -130,7 +132,7 @@ func TestTwoSimpleSequences(t *testing.T) {
 	for idx, p := range buf {
 		expected := color.RGBA{count, count + 1, count + 2, 0x00}
 		if p != expected {
-			t.Errorf("Pixel %d value (%v) not expected (%v)", idx, p, expected)
+			t.Fatalf("Pixel %d value (%v) not expected (%v)", idx, p, expected)
 		}
 		count += 3
 	}
@@ -139,14 +141,14 @@ func TestTwoSimpleSequences(t *testing.T) {
 	for idx, p := range buf {
 		expected := color.RGBA{count, count + 1, count + 2, 0x00}
 		if p != expected {
-			t.Errorf("Pixel %d value (%v) not expected (%v)", idx, p, expected)
+			t.Fatalf("Pixel %d value (%v) not expected (%v)", idx, p, expected)
 		}
 		count += 3
 	}
 
 	done = sr.ProcessFrame(startTime.Add(time.Millisecond))
 	if !done {
-		t.Error("Not done on second call to ProcessFrame")
+		t.Fatal("Not done on second call to ProcessFrame")
 	}
 }
 
@@ -161,16 +163,16 @@ func TestMultiRun(t *testing.T) {
 	sr.InitSequence(seq, now)
 
 	if sr.ProcessFrame(now) {
-		t.Error("Done on call 1")
+		t.Fatal("Done on call 1")
 	}
 	if sr.ProcessFrame(now.Add(time.Millisecond)) {
-		t.Error("Done on call 2")
+		t.Fatal("Done on call 2")
 	}
 	if sr.ProcessFrame(now.Add(2 * time.Millisecond)) {
-		t.Error("Done on call 3")
+		t.Fatal("Done on call 3")
 	}
 	if !sr.ProcessFrame(now.Add(3 * time.Millisecond)) {
-		t.Error("Not done on call 4")
+		t.Fatal("Not done on call 4")
 	}
 }
 
@@ -187,25 +189,25 @@ func TestDelay(t *testing.T) {
 	for tick := 0; tick < 10; tick++ {
 		frameTime := now.Add(time.Duration(tick) * time.Millisecond)
 		if sr.ProcessFrame(frameTime) {
-			t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
+			t.Fatalf("Done on call for tick %d, time %v", tick, frameTime)
 		}
 		if sr.UniverseData(3)[0].R != 0 {
-			t.Error("Delayed effect ran too early")
+			t.Fatalf("Delayed effect ran too early tick %d, time %v", tick, frameTime)
 		}
 		if sr.UniverseData(1)[0].R == 0 {
-			t.Error("Immediate effect didn't run")
+			t.Fatalf("Immediate effect didn't run tick %d, time %v", tick, frameTime)
 		}
 	}
 
 	if sr.ProcessFrame(now.Add(10 * time.Millisecond)) {
-		t.Error("Done at time 10")
+		t.Fatal("Done at time 10")
 	}
 	if sr.UniverseData(3)[0].R == 0 {
-		t.Error("Delayed effect didn't run at right time")
+		t.Fatal("Delayed effect didn't run at right time")
 	}
 
 	if !sr.ProcessFrame(now.Add(11 * time.Millisecond)) {
-		t.Error("Not done at time 11")
+		t.Fatal("Not done at time 11")
 	}
 }
 
@@ -222,36 +224,36 @@ func TestScheduleAfter(t *testing.T) {
 	sr.InitSequence(seq, now)
 
 	if sr.UniverseData(1)[0].R != 0 {
-		t.Error("Data initialization failed to clear colors")
+		t.Fatal("Data initialization failed to clear colors")
 	}
 
 	// On the first tick only the first step should fire
 	tick := 0
 	frameTime := now.Add(time.Duration(tick))
 	if sr.ProcessFrame(frameTime) {
-		t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
+		t.Fatalf("Done on call for tick %d, time %v", tick, frameTime)
 	}
 	if sr.UniverseData(1)[0].R != 0 {
-		t.Errorf("Contingent effect ran too early at tick %d", tick)
+		t.Fatalf("Contingent effect ran too early at tick %d", tick)
 	}
 	if sr.UniverseData(3)[0].R == 0 {
-		t.Errorf("Immediate effect didn't run at tick %d", tick)
+		t.Fatalf("Immediate effect didn't run at tick %d", tick)
 	}
 
 	tick += 2
 	if sr.ProcessFrame(now.Add(time.Duration(tick) * time.Millisecond)) {
-		t.Error("Done at time 1")
+		t.Fatal("Done at time 1")
 	}
 	if sr.UniverseData(1)[0].R == 0 {
-		t.Errorf("Contingent effect didn't run at right time at tick %d", tick)
+		t.Fatalf("Contingent effect didn't run at right time at tick %d", tick)
 	}
 	if sr.UniverseData(3)[0].R == 0 {
-		t.Errorf("Immediate effect weas cleared unexpectedly %d", tick)
+		t.Fatalf("Immediate effect weas cleared unexpectedly %d", tick)
 	}
 
 	tick += 2
 	if !sr.ProcessFrame(now.Add(time.Duration(tick) * time.Millisecond)) {
-		t.Error("Not done at time 2")
+		t.Fatal("Not done at time 2")
 	}
 }
 
@@ -268,24 +270,24 @@ func TestScheduleAfterPlusDelay(t *testing.T) {
 	for tick := 0; tick < 3; tick++ {
 		frameTime := now.Add(time.Duration(tick) * time.Millisecond)
 		if sr.ProcessFrame(frameTime) {
-			t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
+			t.Fatalf("Done on call for tick %d, time %v", tick, frameTime)
 		}
 		if sr.UniverseData(1)[0].R != 0 {
-			t.Error("Contingent effect ran too early")
+			t.Fatal("Contingent effect ran too early")
 		}
 		if sr.UniverseData(3)[0].R == 0 {
-			t.Error("Immediate effect didn't run")
+			t.Fatal("Immediate effect didn't run")
 		}
 	}
 	if sr.ProcessFrame(now.Add(3 * time.Millisecond)) {
-		t.Error("Done at time 3")
+		t.Fatal("Done at time 3")
 	}
 	if sr.UniverseData(1)[0].R == 0 {
-		t.Error("Contingent effect didn't run at right time")
+		t.Fatal("Contingent effect didn't run at right time")
 	}
 
 	if !sr.ProcessFrame(now.Add(4 * time.Millisecond)) {
-		t.Error("Not done at time 4")
+		t.Fatal("Not done at time 4")
 	}
 }
 
@@ -303,21 +305,21 @@ func TestScheduleAfterBadStepId(t *testing.T) {
 	for tick := 0; tick < 1; tick++ {
 		frameTime := now.Add(time.Duration(tick) * time.Millisecond)
 		if sr.ProcessFrame(frameTime) {
-			t.Errorf("Done on call for tick %d, time %v", tick, frameTime)
+			t.Fatalf("Done on call for tick %d, time %v", tick, frameTime)
 		}
 		if sr.UniverseData(1)[0].R != 0 {
-			t.Error("Invalid contingent effect ran")
+			t.Fatal("Invalid contingent effect ran")
 		}
 		if sr.UniverseData(3)[0].R == 0 {
-			t.Error("Immediate effect didn't run")
+			t.Fatal("Immediate effect didn't run")
 		}
 	}
 
 	if !sr.ProcessFrame(now.Add(1 * time.Millisecond)) {
-		t.Error("Not done at time 1")
+		t.Fatal("Not done at time 1")
 	}
 
 	if sr.UniverseData(1)[0].R != 0 {
-		t.Error("Contingent effect ran")
+		t.Fatal("Contingent effect ran")
 	}
 }

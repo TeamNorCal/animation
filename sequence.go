@@ -66,13 +66,13 @@ func NewSequenceRunner(universeSizes []uint) (sr *SequenceRunner) {
 		awaitingTime:     []stepAndTime{},
 		awaitingStep:     []stepAndGatingStep{},
 		activeByUniverse: map[uint][]*Step{},
-		buffers:          make([][]color.RGBA, 0, len(universeSizes)),
+		buffers:          make([][]color.RGBA, len(universeSizes)),
 	}
 
 	for i, size := range universeSizes {
 		sr.activeByUniverse[uint(i)] = []*Step{}
 		// Create a slice filled with zero values
-		sr.buffers = append(sr.buffers, make([]color.RGBA, size))
+		sr.buffers[i] = make([]color.RGBA, size)
 	}
 
 	return sr
@@ -212,7 +212,10 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 // Return value indicates whether the sequence is complete.
 func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	done = true
+
 	sr.checkScheduledTasks(now)
+
+	effectDone := false
 	for universeID, universe := range sr.activeByUniverse {
 		fmt.Println("ProcessFrame for universe", universeID, "with", len(universe), "steps")
 		if len(universe) > 0 {
@@ -221,9 +224,8 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 			s := universe[0]
 			// ...so we're not done yet
 			done = false
-			// Process the animation for the universe
-			effectDone := s.Effect.Frame(sr.buffers[universeID], now)
-			if effectDone {
+			// Process the animation for the universe, first clear the slice
+			if sr.buffers[universeID], effectDone = s.Effect.Frame(sr.buffers[universeID], now); effectDone {
 				fmt.Println("universe", universeID, " effect finished")
 				sr.handleStepComplete(s, now)
 			}
