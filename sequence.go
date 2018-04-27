@@ -211,6 +211,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	done = true
 	sr.checkScheduledTasks(now)
+	fmt.Println("ProcessFrame for ", len(sr.activeByUniverse), " universes")
 	for universeID, universe := range sr.activeByUniverse {
 		if len(universe) > 0 {
 			fmt.Println("universe", universeID, " active")
