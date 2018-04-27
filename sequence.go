@@ -212,7 +212,7 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	done = true
 	sr.checkScheduledTasks(now)
 	for universeID, universe := range sr.activeByUniverse {
-		fmt.Println("ProcessFrame for universe", universeID)
+		fmt.Println("ProcessFrame for universe", universeID, "with", len(universe), "steps")
 		if len(universe) > 0 {
 			fmt.Println("universe", universeID, "active")
 			// We have an active step on this universe
