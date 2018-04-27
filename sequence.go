@@ -4,6 +4,7 @@ package animation
 // higher-level transitions requiring model-level animation effects
 
 import (
+	"fmt"
 	"image/color"
 	"log"
 	"os"
@@ -212,6 +213,7 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	sr.checkScheduledTasks(now)
 	for universeID, universe := range sr.activeByUniverse {
 		if len(universe) > 0 {
+			fmt.Println("universe", universeID, " active")
 			// We have an active step on this universe
 			s := universe[0]
 			// ...so we're not done yet
@@ -219,6 +221,7 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 			// Process the animation for the universe
 			effectDone := s.Effect.Frame(sr.buffers[universeID], now)
 			if effectDone {
+				fmt.Println("universe", universeID, " effect finished")
 				sr.handleStepComplete(s, now)
 			}
 		}
