@@ -197,6 +197,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 				sr.activeByUniverse[s.UniverseID] = []*Step{}
 			}
 			sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
+			fmt.Println("universe", s.universeID, "step added")
 			// Delete this from the list of waiting steps (and don't increment index)
 			sr.awaitingTime = deleteSAT(sr.awaitingTime, idx)
 		} else {
