@@ -203,7 +203,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 			sr.awaitingTime = deleteSAT(sr.awaitingTime, idx)
 		} else {
 			idx++
-			fmt.Println("universe", s.UniverseID, "step still waiting")
+			fmt.Println("step waiting")
 		}
 	}
 }
