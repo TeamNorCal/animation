@@ -188,7 +188,7 @@ func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 // Check for any tasks that should run at this point
 // 'now' is the time that should be considered to be the current time
 func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
-	fmt.Printf("%+v\n", sr)
+	fmt.Printf("Checking %+v\n", sr)
 	for idx := 0; idx < len(sr.awaitingTime); {
 		waiting := sr.awaitingTime[idx]
 		if now.After(waiting.runAt) && waiting.toRun != nil {
@@ -203,6 +203,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 			sr.awaitingTime = deleteSAT(sr.awaitingTime, idx)
 		} else {
 			idx++
+			fmt.Println("universe", s.UniverseID, "step still waiting")
 		}
 	}
 }
