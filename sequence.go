@@ -4,7 +4,6 @@ package animation
 // higher-level transitions requiring model-level animation effects
 
 import (
-	"fmt"
 	"image/color"
 	"log"
 	"os"
@@ -192,7 +191,6 @@ func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 // Check for any tasks that should run at this point
 // 'now' is the time that should be considered to be the current time
 func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
-	fmt.Printf("Checking %+v\n", sr)
 	for idx := 0; idx < len(sr.awaitingTime); {
 		waiting := sr.awaitingTime[idx]
 		if now.After(waiting.runAt) && waiting.toRun != nil {
@@ -202,12 +200,10 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 				sr.activeByUniverse[s.UniverseID] = []*Step{}
 			}
 			sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
-			fmt.Println("universe", s.UniverseID, "step added")
 			// Delete this from the list of waiting steps (and don't increment index)
 			sr.awaitingTime = deleteSAT(sr.awaitingTime, idx)
 		} else {
 			idx++
-			fmt.Println("step waiting")
 		}
 	}
 }
@@ -226,16 +222,13 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	sr.checkScheduledTasks(now)
 
 	for universeID, universe := range sr.activeByUniverse {
-		fmt.Println("ProcessFrame for universe", universeID, "with", len(universe), "steps")
 		if len(universe) > 0 {
-			fmt.Println("universe", universeID, "active")
 			// We have an active step on this universe
 			s := universe[0]
 			// ...so we're not done yet
 			done = false
 			// Process the animation for the universe, first clear the slice
 			if sr.buffers[universeID], effectDone = s.Effect.Frame(sr.buffers[universeID], now); effectDone {
-				fmt.Println("universe", universeID, " effect finished")
 				sr.handleStepComplete(s, now)
 			}
 		}
