@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -51,6 +52,7 @@ type SequenceRunner struct {
 	awaitingStep     []stepAndGatingStep // Queue of steps waiting on another step to complete
 	activeByUniverse map[uint][]*Step    // Queue of steps that can be run on a particular universe. Only head of queue is processed
 	buffers          [][]color.RGBA      // Buffers to hold universe data
+	sync.Mutex
 }
 
 var logger = log.New(os.Stdout, "(SEQUENCE) ", 0)
@@ -91,6 +93,9 @@ func findStep(steps []*Step, stepID int) *Step {
 // start at the provided time. If a sequence is already in process, it will be
 // stopped and the SequenceRunner reinitialized.
 func (sr *SequenceRunner) InitSequence(seq Sequence, now time.Time) {
+	sr.Lock()
+	defer sr.Unlock()
+
 	// Clear structures, no need to leave old slice preallocations
 	// as all slices when initially created are automatically 8
 	// entries from a capacity perspective
@@ -154,7 +159,6 @@ func (sr *SequenceRunner) scheduleAt(s *Step, runAt time.Time) {
 // Check for steps that are waiting on another step to complete.
 // 'now' is the time that should be considered to be the current time
 func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
-
 	uniSteps, isPresent := sr.activeByUniverse[completed.UniverseID]
 	if isPresent {
 		if len(uniSteps) > 0 && uniSteps[0] == completed {
@@ -212,11 +216,15 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 // should be monotonically increasing with each call)
 // Return value indicates whether the sequence is complete.
 func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
+
 	done = true
+	effectDone := false
+
+	sr.Lock()
+	defer sr.Unlock()
 
 	sr.checkScheduledTasks(now)
 
-	effectDone := false
 	for universeID, universe := range sr.activeByUniverse {
 		fmt.Println("ProcessFrame for universe", universeID, "with", len(universe), "steps")
 		if len(universe) > 0 {
@@ -240,5 +248,8 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 // UniverseData gets current data for the specified universe. This data is
 // updated by calling ProcessFrame for the universe
 func (sr *SequenceRunner) UniverseData(UniverseID uint) []color.RGBA {
+	sr.Lock()
+	defer sr.Unlock()
+
 	return sr.buffers[UniverseID]
 }
