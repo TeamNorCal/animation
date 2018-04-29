@@ -63,15 +63,16 @@ var logger = log.New(os.Stdout, "(SEQUENCE) ", 0)
 func NewSequenceRunner(universeSizes []uint) (sr *SequenceRunner) {
 
 	sr = &SequenceRunner{
-		// Slices by default are initialized with a length of 0 and a capacity of 8
-		awaitingTime:     []stepAndTime{},
-		awaitingStep:     []stepAndGatingStep{},
-		activeByUniverse: map[uint][]*Step{},
+		// Slices by default are initialized with a length of 0 and a capacity of 8 preventing
+		// downstream extensions
+		awaitingTime:     make([]stepAndTime, 0, 8),
+		awaitingStep:     make([]stepAndGatingStep, 0, 8),
+		activeByUniverse: make(map[uint][]*Step, 16),
 		buffers:          make([][]color.RGBA, len(universeSizes)),
 	}
 
 	for i, size := range universeSizes {
-		sr.activeByUniverse[uint(i)] = []*Step{}
+		sr.activeByUniverse[uint(i)] = make([]*Step, 0, 8)
 		// Create a slice filled with zero values
 		sr.buffers[i] = make([]color.RGBA, size)
 	}
@@ -98,9 +99,11 @@ func (sr *SequenceRunner) InitSequence(seq Sequence, now time.Time) {
 	// Clear structures, no need to leave old slice preallocations
 	// as all slices when initially created are automatically 8
 	// entries from a capacity perspective
-	sr.awaitingTime = []stepAndTime{}
-	sr.awaitingStep = []stepAndGatingStep{}
-	sr.activeByUniverse = map[uint][]*Step{}
+	sr.awaitingTime = sr.awaitingTime[:0]
+	sr.awaitingStep = sr.awaitingStep[:0]
+	for k, v := range sr.activeByUniverse {
+		sr.activeByUniverse[k] = v[:0]
+	}
 
 	// Process the provided sequence steps
 	for idx, step := range seq.Steps {
@@ -157,6 +160,7 @@ func (sr *SequenceRunner) scheduleAt(s *Step, runAt time.Time) {
 
 // Check for steps that are waiting on another step to complete.
 // 'now' is the time that should be considered to be the current time
+//
 func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 	uniSteps, isPresent := sr.activeByUniverse[completed.UniverseID]
 	if isPresent {
@@ -176,7 +180,7 @@ func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 			} else {
 				// Run immediately
 				if !isPresent {
-					sr.activeByUniverse[s.UniverseID] = []*Step{}
+					sr.activeByUniverse[s.UniverseID] = make([]*Step, 0, 8)
 				}
 				sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
 			}
@@ -197,7 +201,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 			// Time to run it!
 			s := waiting.toRun
 			if _, isPresent := sr.activeByUniverse[s.UniverseID]; !isPresent {
-				sr.activeByUniverse[s.UniverseID] = []*Step{}
+				sr.activeByUniverse[s.UniverseID] = make([]*Step, 0, 8)
 			}
 			sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
 			// Delete this from the list of waiting steps (and don't increment index)
