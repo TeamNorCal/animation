@@ -44,8 +44,11 @@ type PhysicalRange struct {
 func NewMapping(dimension [][]int) Mapping {
 	// Make the triply-nested physical buffer structure based on the provided dimensions
 	// Allocate space for a reasonable number of universes
-	m := Mapping{make([][][]color.RGBA, len(dimension)), make([][]location, 10)[:0],
-		make(map[string]int)}
+	m := Mapping{
+		physBuf:        make([][][]color.RGBA, len(dimension)),
+		universes:      make([][]location, 0, 16),
+		uniNameToIndex: make(map[string]int),
+	}
 	for boardIdx := range dimension {
 		m.physBuf[boardIdx] = make([][]color.RGBA, len(dimension[boardIdx]))
 		for strandIdx := range dimension[boardIdx] {
@@ -106,7 +109,6 @@ func (m *Mapping) UpdateUniverse(id uint, rgbData []color.RGBA) (err error) {
 		if idx >= len(rgbData) {
 			return fmt.Errorf("RGB values (%d) not long enough for universe %d (%+v)", len(rgbData), id, l)
 		}
-		fmt.Printf("%+v\n", l)
 		m.physBuf[l.board][l.strand][l.pixel] = rgbData[idx]
 	}
 	return nil
