@@ -29,7 +29,7 @@ type Mapping struct {
 	universes [][]location
 
 	// Mapping from universe name to universe ID
-	universeIDuniverseNameToID map[string]int
+	uniNameToIndex map[string]int
 }
 
 // PhysicalRange defines a range of physical pixels within asingle strand
@@ -63,7 +63,7 @@ func NewMapping(dimension [][]int) Mapping {
 // Returns true if the universe was successfully added; returns false if the
 // universe name already exists or a specified physical pixel doesn't exist.
 func (m *Mapping) AddUniverse(name string, ranges []PhysicalRange) bool {
-	if _, exists := m.universeIDuniverseNameToID[name]; exists {
+	if _, exists := m.uniNameToIndex[name]; exists {
 		return false
 	}
 	// Figure out the size
@@ -84,14 +84,14 @@ func (m *Mapping) AddUniverse(name string, ranges []PhysicalRange) bool {
 
 	// Add the universe to the structure
 	m.universes = append(m.universes, locs)
-	m.universeIDuniverseNameToID[name] = len(m.universes) - 1
+	m.uniNameToIndex[name] = len(m.universes) - 1
 	return true
 }
 
 // IDForUniverse gets the internal ID associated with the given universe name.
 // Returns error and large invalid ID if universe name is not found
 func (m *Mapping) IDForUniverse(universeName string) (uint, error) {
-	id, ok := m.universeIDuniverseNameToID[universeName]
+	id, ok := m.uniNameToIndex[universeName]
 	if !ok {
 		return math.MaxUint32, fmt.Errorf("\"%s\" is not a known universe", universeName)
 	}
@@ -100,10 +100,13 @@ func (m *Mapping) IDForUniverse(universeName string) (uint, error) {
 
 // UpdateUniverse updates physical pixel color values for pixels corresponding
 // to the provided universe.
-func (m *Mapping) UpdateUniverse(universeID uint, universeData []color.RGBA) {
-	u := m.universes[universeID]
+func (m *Mapping) UpdateUniverse(id uint, rgbData []color.RGBA) (err error) {
+	u := m.universes[id]
+	if len(u) > len(rgbData) {
+		return fmt.Errorf("the supplied RGB values (%d) are not enough to update universe %d (%d)", len(rgbData), id, len(u))
+	}
 	for idx, l := range u {
-		m.physBuf[l.board][l.strand][l.pixel] = universeData[idx]
+		m.physBuf[l.board][l.strand][l.pixel] = rgbData[idx]
 	}
 }
 
