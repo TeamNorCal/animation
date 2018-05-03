@@ -103,7 +103,7 @@ func (m *Mapping) IDForUniverse(universeName string) (uint, error) {
 func (m *Mapping) UpdateUniverse(id uint, rgbData []color.RGBA) (err error) {
 	u := m.universes[id]
 	for idx, l := range u {
-		if idx > len(rgbData) {
+		if idx >= len(rgbData) {
 			return fmt.Errorf("RGB values (%d) not long enough for universe %d (%+v)", len(rgbData), id, l)
 		}
 		m.physBuf[l.board][l.strand][l.pixel] = rgbData[idx]
