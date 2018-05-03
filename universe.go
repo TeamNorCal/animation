@@ -108,6 +108,7 @@ func (m *Mapping) UpdateUniverse(id uint, rgbData []color.RGBA) (err error) {
 	for idx, l := range u {
 		m.physBuf[l.board][l.strand][l.pixel] = rgbData[idx]
 	}
+	return nil
 }
 
 // GetStrandData returns color data for a physical strand. The slice returned
