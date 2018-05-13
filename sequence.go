@@ -26,7 +26,8 @@ type Step struct {
 
 // Sequence encapsulates an animation sequence
 type Sequence struct {
-	Steps []*Step
+	Steps  []*Step
+	Repeat bool
 }
 
 /*
@@ -51,6 +52,7 @@ type SequenceRunner struct {
 	awaitingStep     []stepAndGatingStep // Queue of steps waiting on another step to complete
 	activeByUniverse map[uint][]*Step    // Queue of steps that can be run on a particular universe. Only head of queue is processed
 	buffers          [][]color.RGBA      // Buffers to hold universe data
+	currSeq          Sequence            // Reference to currently-running sequence
 	sync.Mutex
 }
 
@@ -89,12 +91,27 @@ func findStep(steps []*Step, stepID int) *Step {
 	return nil
 }
 
+func (sr *SequenceRunner) startStep(step *Step) {
+	if _, isPresent := sr.activeByUniverse[step.UniverseID]; !isPresent {
+		sr.activeByUniverse[step.UniverseID] = make([]*Step, 0, 8)
+	}
+	step.Effect.Start(time.Now())
+	sr.activeByUniverse[step.UniverseID] = append(sr.activeByUniverse[step.UniverseID], step)
+}
+
 // InitSequence initializes the SequenceRunner with the provides sequence, to
 // start at the provided time. If a sequence is already in process, it will be
 // stopped and the SequenceRunner reinitialized.
 func (sr *SequenceRunner) InitSequence(seq Sequence, now time.Time) {
 	sr.Lock()
 	defer sr.Unlock()
+
+	sr.initSequenceInternal(seq, now)
+}
+
+func (sr *SequenceRunner) initSequenceInternal(seq Sequence, now time.Time) {
+
+	sr.currSeq = seq
 
 	// Clear structures, no need to leave old slice preallocations
 	// as all slices when initially created are automatically 8
@@ -107,18 +124,19 @@ func (sr *SequenceRunner) InitSequence(seq Sequence, now time.Time) {
 
 	// Process the provided sequence steps
 	for idx, step := range seq.Steps {
+		logger.Printf("Process step %d\n", idx)
 		if step.OnCompletionOf != 0 {
 			waitingOnStep := findStep(seq.Steps, step.OnCompletionOf)
 			if waitingOnStep != nil {
-				sr.awaitingStep = append(sr.awaitingStep, stepAndGatingStep{waitingOnStep.StepID, seq.Steps[idx]})
+				sr.awaitingStep = append(sr.awaitingStep, stepAndGatingStep{waitingOnStep.StepID, step})
 			} else {
 				logger.Printf("WARNING: Could not find step %d which step %v is waiting on. This step will be ignored",
 					step.OnCompletionOf, step)
 			}
 		} else if step.Delay > 0 {
-			sr.scheduleAt(seq.Steps[idx], now.Add(step.Delay))
+			sr.scheduleAt(step, now.Add(step.Delay))
 		} else {
-			sr.activeByUniverse[step.UniverseID] = append(sr.activeByUniverse[step.UniverseID], seq.Steps[idx])
+			sr.startStep(step)
 		}
 	}
 }
@@ -179,10 +197,7 @@ func (sr *SequenceRunner) handleStepComplete(completed *Step, now time.Time) {
 				sr.scheduleAt(s, runAt)
 			} else {
 				// Run immediately
-				if !isPresent {
-					sr.activeByUniverse[s.UniverseID] = make([]*Step, 0, 8)
-				}
-				sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
+				sr.startStep(s)
 			}
 			// Delete this from the list of waiting steps (and don't increment index)
 			sr.awaitingStep = deleteSAGS(sr.awaitingStep, idx)
@@ -200,10 +215,7 @@ func (sr *SequenceRunner) checkScheduledTasks(now time.Time) {
 		if now.After(waiting.runAt) && waiting.toRun != nil {
 			// Time to run it!
 			s := waiting.toRun
-			if _, isPresent := sr.activeByUniverse[s.UniverseID]; !isPresent {
-				sr.activeByUniverse[s.UniverseID] = make([]*Step, 0, 8)
-			}
-			sr.activeByUniverse[s.UniverseID] = append(sr.activeByUniverse[s.UniverseID], s)
+			sr.startStep(s)
 			// Delete this from the list of waiting steps (and don't increment index)
 			sr.awaitingTime = deleteSAT(sr.awaitingTime, idx)
 		} else {
@@ -239,7 +251,13 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	}
 
 	// We are done if we procssed nothing and there are no more queued-up steps
-	return done && len(sr.awaitingStep) == 0 && len(sr.awaitingTime) == 0
+	seqDone := done && len(sr.awaitingStep) == 0 && len(sr.awaitingTime) == 0
+
+	if sr.currSeq.Repeat && seqDone {
+		sr.initSequenceInternal(sr.currSeq, now)
+		return false
+	}
+	return seqDone
 }
 
 // UniverseData gets current data for the specified universe. This data is
