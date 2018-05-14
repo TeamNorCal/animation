@@ -74,6 +74,20 @@ func (seq *Sequence) AddInitialStep(name string, step *Step) *Sequence {
 	return seq
 }
 
+// CreateStepCycle creates a cycle of steps by adding an appropriate 'next'
+// operation to each step pointing at the next step, circularly
+func (seq *Sequence) CreateStepCycle(names ...string) *Sequence {
+	for idx := 0; idx < len(names); idx++ {
+		step, isPresent := seq.steps[names[idx]]
+		if !isPresent {
+			logger.Printf("Can't create cycle from step %s, as it can't be found. Ignoring.\n", names[idx])
+			continue
+		}
+		step.ThenDoImmediately(names[(idx+1)%len(names)])
+	}
+	return seq
+}
+
 /*
  * SequenceRunner
  */

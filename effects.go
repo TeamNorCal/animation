@@ -20,6 +20,7 @@ type InterpolateSolid struct {
 	startColor, endColor colorful.Color
 	duration             time.Duration
 	startTime            time.Time
+	startOnCurrent       bool // Capture the current color and use it as the start color?
 }
 
 var fxlog = log.New(os.Stdout, "(EFFECT) ", 0)
@@ -41,6 +42,16 @@ func NewInterpolateSolid(startColor, endColor color.RGBA,
 	return &InterpolateSolid{startColor: colorful.MakeColor(startColor), endColor: colorful.MakeColor(endColor), duration: duration}
 }
 
+// NewInterpolateToHexRGB interpolates from the current color of the universe (determined by sampling the first element)
+// to the provided end color, specified as a 24-bit RGB hex value
+func NewInterpolateToHexRGB(endColor uint32, duration time.Duration) *InterpolateSolid {
+	// Create a standard effect with arbitrary start color
+	effect := NewInterpolateSolidHexRGB(0x0, endColor, duration)
+	// ...then set the magic flag
+	effect.startOnCurrent = true
+	return effect
+}
+
 // Start starts the effect
 func (effect *InterpolateSolid) Start(startTime time.Time) {
 	fxlog.Printf("Setting start time %v", startTime)
@@ -53,6 +64,14 @@ func (effect *InterpolateSolid) Frame(buf []color.RGBA, frameTime time.Time) (ou
 	if frameTime.After(effect.startTime.Add(effect.duration)) {
 		fxlog.Printf("Done at time %v (start time %v)\n", frameTime, effect.startTime)
 		return buf, true
+	}
+
+	// See if we need to find the current universe color and use it as the start color
+	if effect.startOnCurrent {
+		sc := buf[0]
+		sc.A = 0xff // Avoid a 0 transparency (in the case of an uninitialized buffer) which makes go-colorful unhappy
+		effect.startColor = colorful.MakeColor(sc)
+		effect.startOnCurrent = false // Clear the flag to prevent this from being done again
 	}
 
 	elapsed := frameTime.Sub(effect.startTime)
