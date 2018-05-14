@@ -24,6 +24,17 @@ type InterpolateSolid struct {
 
 var fxlog = log.New(os.Stdout, "(EFFECT) ", 0)
 
+func rgbaFromRGBHex(hexColor uint32) color.RGBA {
+	return color.RGBA{uint8(hexColor >> 16 & 0xff), uint8(hexColor >> 8 & 0xff), uint8(hexColor & 0xff), 0xff}
+}
+
+// NewInterpolateSolidHexRGB creates an InterpolateSolid effect, given hex-encoded 24-bit RGB colors
+func NewInterpolateSolidHexRGB(startColor, endColor uint32, duration time.Duration) *InterpolateSolid {
+	startRGBA := rgbaFromRGBHex(startColor)
+	endRGBA := rgbaFromRGBHex(endColor)
+	return &InterpolateSolid{startColor: colorful.MakeColor(startRGBA), endColor: colorful.MakeColor(endRGBA), duration: duration}
+}
+
 // NewInterpolateSolid creates an InterpolateSolid effect
 func NewInterpolateSolid(startColor, endColor color.RGBA,
 	duration time.Duration) *InterpolateSolid {
