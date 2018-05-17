@@ -98,19 +98,12 @@ type stepAndTime struct {
 	toRun *Step
 }
 
-// Encapsulate a step waiting for another step to complete
-type stepAndGatingStep struct {
-	waitingOn int   // Step waiting for completion
-	toRun     *Step // Step to run
-}
-
 // SequenceRunner is responsible for executing a given sequence
 type SequenceRunner struct {
-	awaitingTime     []stepAndTime       // Queue of steps waiting on a particular time
-	awaitingStep     []stepAndGatingStep // Queue of steps waiting on another step to complete
-	activeByUniverse map[uint][]*Step    // Queue of steps that can be run on a particular universe. Only head of queue is processed
-	buffers          [][]color.RGBA      // Buffers to hold universe data
-	currSeq          Sequence            // Reference to currently-running sequence
+	awaitingTime     []stepAndTime    // Queue of steps waiting on a particular time
+	activeByUniverse map[uint][]*Step // Queue of steps that can be run on a particular universe. Only head of queue is processed
+	buffers          [][]color.RGBA   // Buffers to hold universe data
+	currSeq          Sequence         // Reference to currently-running sequence
 	sync.Mutex
 }
 
@@ -126,7 +119,6 @@ func NewSequenceRunner(universeSizes []uint) (sr *SequenceRunner) {
 		// Slices by default are initialized with a length of 0 and a capacity of 8 preventing
 		// downstream extensions
 		awaitingTime:     make([]stepAndTime, 0, 8),
-		awaitingStep:     make([]stepAndGatingStep, 0, 8),
 		activeByUniverse: make(map[uint][]*Step, 16),
 		buffers:          make([][]color.RGBA, len(universeSizes)),
 	}
@@ -165,7 +157,6 @@ func (sr *SequenceRunner) initSequenceInternal(seq Sequence, now time.Time) {
 	// as all slices when initially created are automatically 8
 	// entries from a capacity perspective
 	sr.awaitingTime = sr.awaitingTime[:0]
-	sr.awaitingStep = sr.awaitingStep[:0]
 	for k, v := range sr.activeByUniverse {
 		sr.activeByUniverse[k] = v[:0]
 	}
@@ -202,16 +193,6 @@ func deleteStep(a []*Step, i int) []*Step {
 	copy(a[i:], a[i+1:])
 	a[len(a)-1] = nil
 	return a[:len(a)-1]
-}
-
-func deleteSAGS(a []stepAndGatingStep, i int) []stepAndGatingStep {
-	// SliceTricks has some gaps
-	if i == 0 && len(a) == 1 {
-		return []stepAndGatingStep{}
-	}
-
-	// Wont leak as the slice is not using a pointer
-	return append(a[:i], a[i+1:]...)
 }
 
 func deleteSAT(a []stepAndTime, i int) []stepAndTime {
@@ -312,7 +293,7 @@ func (sr *SequenceRunner) ProcessFrame(now time.Time) (done bool) {
 	}
 
 	// We are done if we procssed nothing and there are no more queued-up steps
-	seqDone := done && len(sr.awaitingStep) == 0 && len(sr.awaitingTime) == 0
+	seqDone := done && len(sr.awaitingTime) == 0
 
 	return seqDone
 }
