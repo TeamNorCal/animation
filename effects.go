@@ -8,11 +8,17 @@ effects should implement interface Animation
 import (
 	"image/color"
 	"log"
+	"math"
 	"os"
 	"time"
 
 	colorful "github.com/lucasb-eyer/go-colorful"
 )
+
+// RGBAFromRGBHex converts a 24-bit hex color value into a color.RGBA value
+func RGBAFromRGBHex(hexColor uint32) color.RGBA {
+	return color.RGBA{uint8(hexColor >> 16 & 0xff), uint8(hexColor >> 8 & 0xff), uint8(hexColor & 0xff), 0xff}
+}
 
 // InterpolateSolid transitions from one solid color (applied to all elements)
 // to another solid color
@@ -25,14 +31,10 @@ type InterpolateSolid struct {
 
 var fxlog = log.New(os.Stdout, "(EFFECT) ", 0)
 
-func rgbaFromRGBHex(hexColor uint32) color.RGBA {
-	return color.RGBA{uint8(hexColor >> 16 & 0xff), uint8(hexColor >> 8 & 0xff), uint8(hexColor & 0xff), 0xff}
-}
-
 // NewInterpolateSolidHexRGB creates an InterpolateSolid effect, given hex-encoded 24-bit RGB colors
 func NewInterpolateSolidHexRGB(startColor, endColor uint32, duration time.Duration) *InterpolateSolid {
-	startRGBA := rgbaFromRGBHex(startColor)
-	endRGBA := rgbaFromRGBHex(endColor)
+	startRGBA := RGBAFromRGBHex(startColor)
+	endRGBA := RGBAFromRGBHex(endColor)
 	return &InterpolateSolid{startColor: colorful.MakeColor(startRGBA), endColor: colorful.MakeColor(endRGBA), duration: duration}
 }
 
@@ -89,4 +91,68 @@ func (effect *InterpolateSolid) Frame(buf []color.RGBA, frameTime time.Time) (ou
 func colorfulToRGBA(c colorful.Color) color.RGBA {
 	r, g, b := c.RGB255()
 	return color.RGBA{r, g, b, 0xff}
+}
+
+// Pulse is a repeating interpolation between two colors, in a pulsing fashion
+type Pulse struct {
+	c1        colorful.Color
+	c2        colorful.Color
+	period    time.Duration
+	startTime time.Time
+}
+
+// NewDimmingPulse creates a pulse between a color and a dimmer version of itself.
+// dimmingRatio determines the amount of dimming - 0.0 means 'black', while 1.0
+// means 'color c'. 'period' is the time for a full dimming/brightening cycle
+func NewDimmingPulse(c color.Color, dimmingRatio float64, period time.Duration) *Pulse {
+	c1 := colorful.MakeColor(c)
+	black := colorful.Color{0.0, 0.0, 0.0}
+	c2 := c1.BlendLuv(black, 1.0-dimmingRatio).Clamped()
+	fxlog.Printf("Pulse colors: c1=%v, c2=%v\n", c1, c2)
+	return &Pulse{
+		c1:     c1,
+		c2:     c2,
+		period: period,
+	}
+}
+
+// Start sets the start time of the pulse effect
+func (effect *Pulse) Start(startTime time.Time) {
+	effect.startTime = startTime
+}
+
+// Frame generates a frame of the Pulse animation. It will always return 'false' for endSeq. It returns
+// the passed-in buffer
+func (effect *Pulse) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, endSeq bool) {
+	// Use a sinusoidal pulse
+	elapsed := frameTime.Sub(effect.startTime)
+	phase := float64(elapsed%effect.period) / float64(effect.period)
+	position := 0.5 - (math.Cos(2*math.Pi*phase) / 2.0)
+	color := effect.c1.BlendLuv(effect.c2, position).Clamped()
+	rgba := colorfulToRGBA(color)
+	for idx := range buf {
+		buf[idx] = rgba
+	}
+	return buf, false
+}
+
+// Solid is a simple static solid color
+type Solid color.RGBA
+
+// NewSolid creates a Solid effect for the given color
+func NewSolid(color color.RGBA) Solid {
+	return Solid(color)
+}
+
+// Start the Solid effect - NOP
+func (effect Solid) Start(startTime time.Time) {
+	// NOP
+}
+
+// Frame creates a frame of the Solid effect
+func (effect Solid) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, endSeq bool) {
+	for idx := range buf {
+		buf[idx] = color.RGBA(effect)
+	}
+	return buf, false
 }
