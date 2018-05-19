@@ -107,7 +107,8 @@ type Pulse struct {
 func NewDimmingPulse(c color.Color, dimmingRatio float64, period time.Duration) *Pulse {
 	c1 := colorful.MakeColor(c)
 	black := colorful.Color{0.0, 0.0, 0.0}
-	c2 := c1.BlendLuv(black, 1.0-dimmingRatio).Clamped()
+	// c2 := c1.BlendLuv(black, 1.0-dimmingRatio).Clamped()
+	c2 := c1.BlendRgb(black, 1.0-dimmingRatio).Clamped()
 	fxlog.Printf("Pulse colors: c1=%v, c2=%v\n", c1, c2)
 	return &Pulse{
 		c1:     c1,
@@ -128,7 +129,8 @@ func (effect *Pulse) Frame(buf []color.RGBA, frameTime time.Time) (output []colo
 	elapsed := frameTime.Sub(effect.startTime)
 	phase := float64(elapsed%effect.period) / float64(effect.period)
 	position := 0.5 - (math.Cos(2*math.Pi*phase) / 2.0)
-	color := effect.c1.BlendLuv(effect.c2, position).Clamped()
+	// color := effect.c1.BlendLuv(effect.c2, position).Clamped()
+	color := effect.c1.BlendRgb(effect.c2, position).Clamped()
 	rgba := colorfulToRGBA(color)
 	for idx := range buf {
 		buf[idx] = rgba
