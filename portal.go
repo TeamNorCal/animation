@@ -236,7 +236,9 @@ func (p *Portal) updatePortal(newStatus *PortalStatus) {
 			p.createNeutralPortalSeq(newStatus)
 		}
 	} else if p.currentStatus.Level != newStatus.Level {
-		updateHoldTime(&p.sr.currSeq, time.Duration(125.0*newStatus.Level)*time.Millisecond)
+		if newStatus.Faction == ENL || newStatus.Faction == RES {
+			updateHoldTime(&p.sr.currSeq, time.Duration(125.0*newStatus.Level)*time.Millisecond)
+		}
 	}
 	// applyBrightness(p.frameBuf[index].Data, p.currentStatus.Resonators[index].Health/100.0)
 }
@@ -262,7 +264,9 @@ func createWindowFadeInOut(stepMap map[string]*Step, uniID int, color uint32, ho
 
 func updateHoldTime(seq *Sequence, holdTime time.Duration) {
 	for uniID := 0; uniID < numShaftWindows; uniID++ {
-		seq.steps["solid"+strconv.Itoa(uniID)].Effect.(*Solid).duration = holdTime
+		if step := seq.steps["solid"+strconv.Itoa(uniID)]; step != nil {
+			step.Effect.(*Solid).duration = holdTime
+		}
 	}
 }
 
