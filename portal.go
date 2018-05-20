@@ -148,11 +148,60 @@ func (cb *animCircBuf) size() int {
 	return (cb.tail + bufLen - cb.head) % bufLen
 }
 
+type seqCircBuf struct {
+	buf  []*Sequence
+	head int
+	tail int
+}
+
+func newSeqCircBuf() seqCircBuf {
+	return seqCircBuf{
+		buf:  make([]*Sequence, 5),
+		head: 0,
+		tail: 0,
+	}
+}
+
+func (cb *seqCircBuf) enqueue(seq *Sequence) {
+	cb.buf[cb.tail] = seq
+	cb.tail = (cb.tail + 1) % len(cb.buf)
+}
+
+func (cb *seqCircBuf) dequeue() *Sequence {
+	if cb.head == cb.tail {
+		return nil
+	}
+	ret := cb.buf[cb.head]
+	cb.buf[cb.head] = nil
+	cb.head = (cb.head + 1) % len(cb.buf)
+	return ret
+}
+
+func (cb *seqCircBuf) clear() {
+	for cb.head != cb.tail {
+		cb.buf[cb.head] = nil
+		cb.head = (cb.head + 1) % len(cb.buf)
+	}
+}
+
+func (cb *seqCircBuf) peek() *Sequence {
+	if cb.head == cb.tail {
+		return nil
+	}
+	return cb.buf[cb.head]
+}
+
+func (cb *seqCircBuf) size() int {
+	bufLen := len(cb.buf)
+	return (cb.tail + bufLen - cb.head) % bufLen
+}
+
 // Portal encapsulates the animation status of the entire portal. This will probably be a singleton
 // object, but the fields are encapsulated into a struct to allow for something different
 type Portal struct {
 	currentStatus *PortalStatus   // The cached current status of the portal
 	sr            *SequenceRunner // SequenceRunner for portal portion
+	seqBuf        seqCircBuf      // Queue of sequences to run on SequenceRunner
 	resonators    []animCircBuf   // Animations for resonators
 	frameBuf      []ChannelData   // Frame buffers by universe
 }
@@ -215,6 +264,7 @@ func NewPortal() *Portal {
 	return &Portal{
 		currentStatus: &PortalStatus{NEU, 0.0, make([]ResonatorStatus, numResos)},
 		sr:            NewSequenceRunner(sizes),
+		seqBuf:        newSeqCircBuf(),
 		resonators:    resoBufs,
 		frameBuf:      frameBuf,
 	}
@@ -246,9 +296,14 @@ func (p *Portal) GetFrame(frameTime time.Time) []ChannelData {
 	for idx := 0; idx < numResos; idx++ {
 		p.getResoFrame(idx, frameTime)
 	}
-	p.sr.ProcessFrame(frameTime)
+	seqDone := p.sr.ProcessFrame(frameTime)
 	for idx := 0; idx < numShaftWindows; idx++ {
 		p.frameBuf[numResos+idx].Data = p.sr.UniverseData(uint(idx))
+	}
+	if seqDone {
+		if nextSeq := p.seqBuf.dequeue(); nextSeq != nil {
+			p.sr.InitSequence(nextSeq, frameTime)
+		}
 	}
 	return p.frameBuf
 }
@@ -261,40 +316,85 @@ func (msg *PortalStatus) deepCopy() (cpy *PortalStatus) {
 	return cpy
 }
 
+func (p *Portal) createOwnedPortalSeq(newStatus *PortalStatus) {
+	var c uint32
+	switch newStatus.Faction {
+	case NEU:
+		c = 0xffffff
+	case ENL:
+		c = 0x00ff00
+	case RES:
+		c = 0x0000ff
+	}
+	stepMap := make(map[string]*Step)
+	for uniID := 0; uniID < numShaftWindows; uniID++ {
+		createWindowFadeInOut(stepMap, uniID, c, time.Duration(125.0*newStatus.Level)*time.Millisecond)
+	}
+	seq := NewSequence()
+	for name, step := range stepMap {
+		seq.AddStep(name, step)
+	}
+	// Create dependencies between steps, to create a cycle
+	for uniID := 0; uniID < numShaftWindows; uniID++ {
+		idStr := strconv.Itoa(uniID)
+		// Link the three phases within each universe
+		stepMap["in"+idStr].ThenDoImmediately("solid" + idStr)
+		stepMap["solid"+idStr].ThenDoImmediately("out" + idStr)
+		// Then do cross-universe linking, with fades overlapping
+		nextID := (uniID + 2) % numShaftWindows
+		stepMap["in"+idStr].ThenDoImmediately("in" + strconv.Itoa(nextID))
+	}
+	// Add the initial operation to kick it off - two cycles at once
+	seq.AddInitialOperation(Operation{StepName: "in0"})
+	seq.AddInitialOperation(Operation{StepName: "in1"})
+	p.seqBuf.clear() // Clear any still-pending sequences from before
+	p.sr.InitSequence(seq, time.Now())
+}
+
+func (p *Portal) createNeutralPortalSeq(newStatus *PortalStatus) {
+	seq := NewSequence()
+	for uniID := 0; uniID < numShaftWindows; uniID++ {
+		idStr := strconv.Itoa(uniID)
+
+		fadeOut := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewInterpolateToHexRGB(0x000000, time.Second),
+		}
+		seq.AddInitialStep("fadeOut"+idStr, fadeOut)
+
+		pulse := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewPulse(RGBAFromRGBHex(0x000000), RGBAFromRGBHex(0xff0000), 2*time.Second, true),
+		}
+		seq.AddStep("pulse"+idStr, pulse)
+		fadeOut.ThenDoImmediately("pulse" + idStr)
+
+		fadeIn := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewInterpolateToHexRGB(0xaaaaaa, 3*time.Second),
+		}
+		seq.AddStep("fadeIn"+idStr, fadeIn)
+		pulse.ThenDoImmediately("fadeIn" + idStr)
+
+		solid := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewSolid(RGBAFromRGBHex(0xaaaaaa)),
+		}
+		seq.AddStep("solid"+idStr, solid)
+		fadeIn.ThenDoImmediately("solid" + idStr)
+	}
+	p.seqBuf.clear()
+	p.sr.InitSequence(seq, time.Now())
+}
+
 func (p *Portal) updatePortal(newStatus *PortalStatus) {
 	if p.currentStatus.Faction != newStatus.Faction {
 		// Faction change
-		var c uint32
-		switch newStatus.Faction {
-		case NEU:
-			c = 0xffffff
-		case ENL:
-			c = 0x00ff00
-		case RES:
-			c = 0x0000ff
+		if newStatus.Faction == ENL || newStatus.Faction == RES {
+			p.createOwnedPortalSeq(newStatus)
+		} else {
+			p.createNeutralPortalSeq(newStatus)
 		}
-		stepMap := make(map[string]*Step)
-		for uniID := 0; uniID <= numShaftWindows; uniID++ {
-			createWindowFadeInOut(stepMap, uniID, c, time.Duration(125.0*newStatus.Level)*time.Millisecond)
-		}
-		seq := NewSequence()
-		for name, step := range stepMap {
-			seq.AddStep(name, step)
-		}
-		// Create dependencies between steps, to create a cycle
-		for uniID := 0; uniID <= numShaftWindows; uniID++ {
-			idStr := strconv.Itoa(uniID)
-			// Link the three phases within each universe
-			stepMap["in"+idStr].ThenDoImmediately("solid" + idStr)
-			stepMap["solid"+idStr].ThenDoImmediately("out" + idStr)
-			// Then do cross-universe linking, with fades overlapping
-			nextID := (uniID + 2) % numShaftWindows
-			stepMap["in"+idStr].ThenDoImmediately("in" + strconv.Itoa(nextID))
-		}
-		// Add the initial operation to kick it off - two cycles at once
-		seq.AddInitialOperation(Operation{StepName: "in0"})
-		seq.AddInitialOperation(Operation{StepName: "in1"})
-		p.sr.InitSequence(seq, time.Now())
 	} else if p.currentStatus.Level != newStatus.Level {
 		updateHoldTime(&p.sr.currSeq, time.Duration(125.0*newStatus.Level)*time.Millisecond)
 	}

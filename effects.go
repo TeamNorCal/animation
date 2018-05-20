@@ -100,10 +100,22 @@ func colorfulToRGBA(c colorful.Color) color.RGBA {
 
 // Pulse is a repeating interpolation between two colors, in a pulsing fashion
 type Pulse struct {
-	c1        colorful.Color
-	c2        colorful.Color
-	period    time.Duration
-	startTime time.Time
+	c1          colorful.Color
+	c2          colorful.Color
+	period      time.Duration
+	startTime   time.Time
+	singleCycle bool
+}
+
+// NewPulse creates a new pulse effect with the given parmeters. singleCycle indicates whether the effect should
+// report completion after one cycle
+func NewPulse(c1, c2 color.Color, period time.Duration, singleCycle bool) *Pulse {
+	return &Pulse{
+		c1:          colorful.MakeColor(c1),
+		c2:          colorful.MakeColor(c2),
+		period:      period,
+		singleCycle: singleCycle,
+	}
 }
 
 // NewDimmingPulse creates a pulse between a color and a dimmer version of itself.
@@ -140,7 +152,8 @@ func (effect *Pulse) Frame(buf []color.RGBA, frameTime time.Time) (output []colo
 	for idx := range buf {
 		buf[idx] = rgba
 	}
-	return buf, false
+	done := effect.singleCycle && elapsed > effect.period
+	return buf, done
 }
 
 // Solid is a simple static solid color
