@@ -1,210 +1,29 @@
 package animation
 
 import (
-	"encoding/json"
 	"image/color"
+	"math/rand"
 	"strconv"
 	"time"
+
+	"github.com/TeamNorCal/portalmodel"
 )
 
 // Enacapsulates a model of a portal from the perpsective of animations.
 // Provides an API semantically meaningful to Ingress
 
-// OpcChannel represents a channel in Open Pixel Controller parlance. Channel is a logical entity;
-// the fcserver config file maps this to pixels on strands on particular FadeCandy boards
-// fcserver configuration must honor this enumeration
-type OpcChannel int
-
-// List of channels in the portal - 1-8 are resonators, and 9-24 are tower windows
 const (
-	_ = iota // OPC channels are 1 based, with 0 being broadcast
-	Reso1
-	Reso2
-	Reso3
-	Reso4
-	Reso5
-	Reso6
-	Reso7
-	Reso8
-	Level1_1 // 9
-	Level1_2
-	Level2_1
-	Level2_2
-	Level3_1
-	Level3_2
-	Level4_1
-	Level4_2
-	Level5_1
-	Level5_2
-	Level6_1
-	Level6_2
-	Level7_1
-	Level7_2
-	Level8_1
-	Level8_2
-)
-
-// Faction represents an Ingress fasction
-type Faction int
-
-const (
-	// NEU means Neutral
-	NEU Faction = iota
-	// ENL means Enlightened!
-	ENL
-	// RES means Resistance :(
-	RES
-)
-
-const windowSize = 30
-const numResos = 8
-const numShaftWindows = 16
-
-// Effect contants
-
-const (
+	// Number of pixels in each window
+	windowSize = 30
+	// Number of resonators
+	numResos = 8
+	// Number of windows in the tower
+	numShaftWindows = 16
 	// How much do we dim the reso by?
 	resoDimRatio = 0.7
 	// Length of reso pulse
 	resoPulseDuration = 3 * time.Second
 )
-
-// Universe defines a universe from the perspective of the animation engine.
-// It consists of an index in the array of returned frame data, and a size
-type Universe struct {
-	Index int
-	Size  int
-}
-
-// Universes defines universe data for the model. It's indexed by logical name,
-// with values containing size of the universe and index into the array of
-// frame data
-var Universes map[string]Universe
-
-// ResonatorStatus is the status of a resonator, you'll be surprised to hear
-type ResonatorStatus struct {
-	Level  int     // Resonator level, 0-8
-	Health float32 // Resonator health, 0-100
-}
-
-// PortalStatus encapsulates the status of the portal
-type PortalStatus struct {
-	Faction    Faction           // Owning faction
-	Level      float32           // Portal level, 0-8 (floating point, because average of resonator levels)
-	Resonators []ResonatorStatus // Array of 8 resonators, level 0 (undeployed) - 8
-}
-
-// ChannelData defines data for a particular OPC channel for a frame
-type ChannelData struct {
-	ChannelNum OpcChannel
-	Data       []color.RGBA
-}
-
-type animCircBuf struct {
-	buf  []Animation
-	head int
-	tail int
-}
-
-func newAnimCircBuf() animCircBuf {
-	return animCircBuf{
-		buf:  make([]Animation, 5),
-		head: 0,
-		tail: 0,
-	}
-}
-
-func (cb *animCircBuf) enqueueAnim(effect Animation) {
-	cb.buf[cb.tail] = effect
-	cb.tail = (cb.tail + 1) % len(cb.buf)
-}
-
-func (cb *animCircBuf) dequeueAnim() Animation {
-	if cb.head == cb.tail {
-		return nil
-	}
-	ret := cb.buf[cb.head]
-	cb.buf[cb.head] = nil
-	cb.head = (cb.head + 1) % len(cb.buf)
-	return ret
-}
-
-func (cb *animCircBuf) clear() {
-	for cb.head != cb.tail {
-		cb.buf[cb.head] = nil
-		cb.head = (cb.head + 1) % len(cb.buf)
-	}
-}
-
-func (cb *animCircBuf) currAnim() Animation {
-	if cb.head == cb.tail {
-		return nil
-	}
-	return cb.buf[cb.head]
-}
-
-func (cb *animCircBuf) size() int {
-	bufLen := len(cb.buf)
-	return (cb.tail + bufLen - cb.head) % bufLen
-}
-
-type seqCircBuf struct {
-	buf  []*Sequence
-	head int
-	tail int
-}
-
-func newSeqCircBuf() seqCircBuf {
-	return seqCircBuf{
-		buf:  make([]*Sequence, 5),
-		head: 0,
-		tail: 0,
-	}
-}
-
-func (cb *seqCircBuf) enqueue(seq *Sequence) {
-	cb.buf[cb.tail] = seq
-	cb.tail = (cb.tail + 1) % len(cb.buf)
-}
-
-func (cb *seqCircBuf) dequeue() *Sequence {
-	if cb.head == cb.tail {
-		return nil
-	}
-	ret := cb.buf[cb.head]
-	cb.buf[cb.head] = nil
-	cb.head = (cb.head + 1) % len(cb.buf)
-	return ret
-}
-
-func (cb *seqCircBuf) clear() {
-	for cb.head != cb.tail {
-		cb.buf[cb.head] = nil
-		cb.head = (cb.head + 1) % len(cb.buf)
-	}
-}
-
-func (cb *seqCircBuf) peek() *Sequence {
-	if cb.head == cb.tail {
-		return nil
-	}
-	return cb.buf[cb.head]
-}
-
-func (cb *seqCircBuf) size() int {
-	bufLen := len(cb.buf)
-	return (cb.tail + bufLen - cb.head) % bufLen
-}
-
-// Portal encapsulates the animation status of the entire portal. This will probably be a singleton
-// object, but the fields are encapsulated into a struct to allow for something different
-type Portal struct {
-	currentStatus *PortalStatus   // The cached current status of the portal
-	sr            *SequenceRunner // SequenceRunner for portal portion
-	seqBuf        seqCircBuf      // Queue of sequences to run on SequenceRunner
-	resonators    []animCircBuf   // Animations for resonators
-	frameBuf      []ChannelData   // Frame buffers by universe
-}
 
 // resonatorLevelColors is an array of colors of resonators of various levels, 0-8
 var resonatorLevelColors = []uint32{
@@ -270,6 +89,12 @@ func NewPortal() *Portal {
 	}
 }
 
+// UpdateFromCanonicalStatus updates the animation with the status of the portal,
+// using the canonical Status type
+func (p *Portal) UpdateFromCanonicalStatus(status *portalmodel.Status) {
+	p.UpdateStatus(externalStatusToInternal(status))
+}
+
 // UpdateStatus updates the status of the portal from an animation perspective
 func (p *Portal) UpdateStatus(status *PortalStatus) {
 	newStatus := status.deepCopy()
@@ -308,12 +133,25 @@ func (p *Portal) GetFrame(frameTime time.Time) []ChannelData {
 	return p.frameBuf
 }
 
-func (msg *PortalStatus) deepCopy() (cpy *PortalStatus) {
-	cpy = &PortalStatus{}
+func createFadePulseSeq(c color.Color, pulseDuration time.Duration) *Sequence {
+	seq := NewSequence()
+	for uniID := 0; uniID < numShaftWindows; uniID++ {
+		idStr := strconv.Itoa(uniID)
 
-	byt, _ := json.Marshal(msg)
-	json.Unmarshal(byt, cpy)
-	return cpy
+		fadeOut := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewInterpolateToHexRGB(0x000000, time.Second),
+		}
+		seq.AddInitialStep("fadeOut"+idStr, fadeOut)
+
+		pulse := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewPulse(RGBAFromRGBHex(0x000000), c, pulseDuration, true),
+		}
+		seq.AddStep("pulse"+idStr, pulse)
+		fadeOut.ThenDoImmediately("pulse" + idStr)
+	}
+	return seq
 }
 
 func (p *Portal) createOwnedPortalSeq(newStatus *PortalStatus) {
@@ -348,7 +186,9 @@ func (p *Portal) createOwnedPortalSeq(newStatus *PortalStatus) {
 	seq.AddInitialOperation(Operation{StepName: "in0"})
 	seq.AddInitialOperation(Operation{StepName: "in1"})
 	p.seqBuf.clear() // Clear any still-pending sequences from before
-	p.sr.InitSequence(seq, time.Now())
+	p.seqBuf.enqueue(seq)
+	takeOverPulse := createFadePulseSeq(RGBAFromRGBHex(c), 1500*time.Millisecond)
+	p.sr.InitSequence(takeOverPulse, time.Now())
 }
 
 func (p *Portal) createNeutralPortalSeq(newStatus *PortalStatus) {
@@ -371,10 +211,10 @@ func (p *Portal) createNeutralPortalSeq(newStatus *PortalStatus) {
 
 		fadeIn := &Step{
 			UniverseID: uint(uniID),
-			Effect:     NewInterpolateToHexRGB(0xaaaaaa, 3*time.Second),
+			Effect:     NewInterpolateToHexRGB(0xaaaaaa, time.Second),
 		}
 		seq.AddStep("fadeIn"+idStr, fadeIn)
-		pulse.ThenDoImmediately("fadeIn" + idStr)
+		pulse.ThenDo("fadeIn"+idStr, time.Duration(rand.Intn(3000))*time.Millisecond)
 
 		solid := &Step{
 			UniverseID: uint(uniID),
@@ -433,24 +273,24 @@ func (p *Portal) updateResonator(index int, newStatus *ResonatorStatus) {
 		if newStatus.Level == 0 {
 			// Clear current animations, then fade to black and stay there
 			p.resonators[index].clear()
-			p.resonators[index].enqueueAnim(NewInterpolateToHexRGB(0x000000, time.Second))
-			p.resonators[index].enqueueAnim(NewSolid(RGBAFromRGBHex(0x000000)))
+			p.resonators[index].enqueue(NewInterpolateToHexRGB(0x000000, time.Second))
+			p.resonators[index].enqueue(NewSolid(RGBAFromRGBHex(0x000000)))
 		} else {
 			// Clear current animations, then fade to new nominal reso color and pulse
 			resoColor := resonatorLevelColors[newStatus.Level]
 			p.resonators[index].clear()
 			logger.Printf("Enqueuing 2 animations for index %d\n", index)
-			p.resonators[index].enqueueAnim(NewInterpolateToHexRGB(resoColor, time.Second))
-			p.resonators[index].enqueueAnim(NewDimmingPulse(RGBAFromRGBHex(resoColor), resoDimRatio, resoPulseDuration))
+			p.resonators[index].enqueue(NewInterpolateToHexRGB(resoColor, time.Second))
+			p.resonators[index].enqueue(NewDimmingPulse(RGBAFromRGBHex(resoColor), resoDimRatio, resoPulseDuration))
 		}
-		p.resonators[index].currAnim().Start(time.Now())
+		p.resonators[index].peek().Start(time.Now())
 	}
 }
 
 // getResoFrame updates the frame buffer for the specified resonator with data
 // for the current frame, with specified frame time
 func (p *Portal) getResoFrame(index int, frameTime time.Time) {
-	currAnim := p.resonators[index].currAnim()
+	currAnim := p.resonators[index].peek()
 	if currAnim == nil {
 		return
 	}
@@ -466,8 +306,8 @@ func (p *Portal) getResoFrame(index int, frameTime time.Time) {
 			// More animations queued - move on to the Next
 			// We know it's > 1 because we returned early if there were 0
 			logger.Printf("Dequeuing animation for index %d\n", index)
-			p.resonators[index].dequeueAnim()
-			p.resonators[index].currAnim().Start(frameTime)
+			p.resonators[index].dequeue()
+			p.resonators[index].peek().Start(frameTime)
 		}
 	}
 }
