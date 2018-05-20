@@ -202,19 +202,26 @@ func (p *Portal) createNeutralPortalSeq(newStatus *PortalStatus) {
 		}
 		seq.AddInitialStep("fadeOut"+idStr, fadeOut)
 
-		pulse := &Step{
+		pulseIn := &Step{
 			UniverseID: uint(uniID),
-			Effect:     NewPulse(RGBAFromRGBHex(0x000000), RGBAFromRGBHex(0xff0000), 2*time.Second, true),
+			Effect:     NewInterpolateToHexRGB(0xff0000, 250*time.Millisecond),
 		}
-		seq.AddStep("pulse"+idStr, pulse)
-		fadeOut.ThenDoImmediately("pulse" + idStr)
+		seq.AddStep("pulseIn"+idStr, pulseIn)
+		fadeOut.ThenDoImmediately("pulseIn" + idStr)
+
+		pulseOut := &Step{
+			UniverseID: uint(uniID),
+			Effect:     NewInterpolateToHexRGB(0x000000, 1500*time.Millisecond),
+		}
+		seq.AddStep("pulseOut"+idStr, pulseOut)
+		pulseIn.ThenDoImmediately("pulseOut" + idStr)
 
 		fadeIn := &Step{
 			UniverseID: uint(uniID),
 			Effect:     NewInterpolateToHexRGB(0xaaaaaa, time.Second),
 		}
 		seq.AddStep("fadeIn"+idStr, fadeIn)
-		pulse.ThenDo("fadeIn"+idStr, time.Duration(rand.Intn(3000))*time.Millisecond)
+		pulseOut.ThenDo("fadeIn"+idStr, time.Duration(rand.Intn(3000))*time.Millisecond)
 
 		solid := &Step{
 			UniverseID: uint(uniID),
