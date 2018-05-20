@@ -171,6 +171,7 @@ var resonatorLevelColors = []uint32{
 }
 
 func init() {
+	logger.Println("Initializing...")
 	// Set up universes
 	Universes = make(map[string]Universe)
 	idx := 0
@@ -223,7 +224,7 @@ func NewPortal() *Portal {
 func (p *Portal) UpdateStatus(status *PortalStatus) {
 	newStatus := status.deepCopy()
 	if p.currentStatus.Faction != newStatus.Faction || p.currentStatus.Level != newStatus.Level {
-		p.updatePortal(status.Faction)
+		p.updatePortal(status)
 	}
 
 	for idx, status := range newStatus.Resonators {
@@ -260,8 +261,69 @@ func (msg *PortalStatus) deepCopy() (cpy *PortalStatus) {
 	return cpy
 }
 
-func (p *Portal) updatePortal(newFaction Faction) {
+func (p *Portal) updatePortal(newStatus *PortalStatus) {
+	if p.currentStatus.Faction != newStatus.Faction {
+		// Faction change
+		var c uint32
+		switch newStatus.Faction {
+		case NEU:
+			c = 0xffffff
+		case ENL:
+			c = 0x00ff00
+		case RES:
+			c = 0x0000ff
+		}
+		stepMap := make(map[string]*Step)
+		for uniID := 0; uniID <= numShaftWindows; uniID++ {
+			createWindowFadeInOut(stepMap, uniID, c, time.Duration(125.0*newStatus.Level)*time.Millisecond)
+		}
+		seq := NewSequence()
+		for name, step := range stepMap {
+			seq.AddStep(name, step)
+		}
+		// Create dependencies between steps, to create a cycle
+		for uniID := 0; uniID <= numShaftWindows; uniID++ {
+			idStr := strconv.Itoa(uniID)
+			// Link the three phases within each universe
+			stepMap["in"+idStr].ThenDoImmediately("solid" + idStr)
+			stepMap["solid"+idStr].ThenDoImmediately("out" + idStr)
+			// Then do cross-universe linking, with fades overlapping
+			nextID := (uniID + 2) % numShaftWindows
+			stepMap["in"+idStr].ThenDoImmediately("in" + strconv.Itoa(nextID))
+		}
+		// Add the initial operation to kick it off - two cycles at once
+		seq.AddInitialOperation(Operation{StepName: "in0"})
+		seq.AddInitialOperation(Operation{StepName: "in1"})
+		p.sr.InitSequence(seq, time.Now())
+	} else if p.currentStatus.Level != newStatus.Level {
+		updateHoldTime(&p.sr.currSeq, time.Duration(125.0*newStatus.Level)*time.Millisecond)
+	}
+	// applyBrightness(p.frameBuf[index].Data, p.currentStatus.Resonators[index].Health/100.0)
+}
 
+func createWindowFadeInOut(stepMap map[string]*Step, uniID int, color uint32, holdTime time.Duration) {
+	idStr := strconv.Itoa(uniID)
+	in := &Step{
+		Effect:     NewInterpolateToHexRGB(color, 250*time.Millisecond),
+		UniverseID: uint(uniID),
+	}
+	stepMap["in"+idStr] = in
+	solid := &Step{
+		Effect:     NewTimedSolid(RGBAFromRGBHex(color), holdTime),
+		UniverseID: uint(uniID),
+	}
+	stepMap["solid"+idStr] = solid
+	out := &Step{
+		Effect:     NewInterpolateToHexRGB(0x000000, 500*time.Millisecond),
+		UniverseID: uint(uniID),
+	}
+	stepMap["out"+idStr] = out
+}
+
+func updateHoldTime(seq *Sequence, holdTime time.Duration) {
+	for uniID := 0; uniID < numShaftWindows; uniID++ {
+		seq.steps["solid"+strconv.Itoa(uniID)].Effect.(*Solid).duration = holdTime
+	}
 }
 
 func (p *Portal) updateResonator(index int, newStatus *ResonatorStatus) {
@@ -293,7 +355,7 @@ func (p *Portal) getResoFrame(index int, frameTime time.Time) {
 		return
 	}
 	buf, done := currAnim.Frame(p.frameBuf[index].Data, frameTime)
-	// applyBrightness(p.frameBuf[index].Data, p.currentStatus.Resonators[index].Health/100.0)
+	applyBrightness(p.frameBuf[index].Data, p.currentStatus.Resonators[index].Health/100.0)
 	p.frameBuf[index].Data = buf
 	// Resonator animations run in a continuous loop, so restart if done
 	if done {

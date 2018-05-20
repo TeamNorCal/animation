@@ -139,22 +139,40 @@ func (effect *Pulse) Frame(buf []color.RGBA, frameTime time.Time) (output []colo
 }
 
 // Solid is a simple static solid color
-type Solid color.RGBA
+type Solid struct {
+	color     color.RGBA
+	timed     bool
+	startTime time.Time
+	duration  time.Duration
+}
 
 // NewSolid creates a Solid effect for the given color
-func NewSolid(color color.RGBA) Solid {
-	return Solid(color)
+func NewSolid(color color.RGBA) *Solid {
+	return &Solid{
+		color: color,
+		timed: false,
+	}
+}
+
+// NewTimedSolid creates a solid effect that lasts a fixed amount of time
+func NewTimedSolid(color color.RGBA, duration time.Duration) *Solid {
+	return &Solid{
+		color:    color,
+		timed:    true,
+		duration: duration,
+	}
 }
 
 // Start the Solid effect - NOP
-func (effect Solid) Start(startTime time.Time) {
-	// NOP
+func (effect *Solid) Start(startTime time.Time) {
+	effect.startTime = startTime
 }
 
 // Frame creates a frame of the Solid effect
-func (effect Solid) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, endSeq bool) {
+func (effect *Solid) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, endSeq bool) {
 	for idx := range buf {
-		buf[idx] = color.RGBA(effect)
+		buf[idx] = color.RGBA(effect.color)
 	}
-	return buf, false
+	done := effect.timed && frameTime.After(effect.startTime.Add(effect.duration))
+	return buf, done
 }
