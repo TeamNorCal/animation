@@ -26,7 +26,8 @@ type InterpolateSolid struct {
 	startColor, endColor colorful.Color
 	duration             time.Duration
 	startTime            time.Time
-	startOnCurrent       bool // Capture the current color and use it as the start color?
+	startOnCurrent       bool // Capture the color of the first frame and use it as the start color?
+	captureNext          bool
 }
 
 var fxlog = log.New(os.Stdout, "(EFFECT) ", 0)
@@ -56,31 +57,35 @@ func NewInterpolateToHexRGB(endColor uint32, duration time.Duration) *Interpolat
 
 // Start starts the effect
 func (effect *InterpolateSolid) Start(startTime time.Time) {
-	fxlog.Printf("Setting start time %v", startTime)
+	// fxlog.Printf("Setting start time %v", startTime)
 	effect.startTime = startTime
+	if effect.startOnCurrent {
+		effect.captureNext = true
+	}
 }
 
 // Frame generates an animation frame
 func (effect *InterpolateSolid) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, endSeq bool) {
 	//fxlog.Printf("Buf cap: %d len: %d\n", cap(buf), len(buf))
 	if frameTime.After(effect.startTime.Add(effect.duration)) {
-		fxlog.Printf("Done at time %v (start time %v)\n", frameTime, effect.startTime)
+		// fxlog.Printf("Done at time %v (start time %v)\n", frameTime, effect.startTime)
 		return buf, true
 	}
 
 	// See if we need to find the current universe color and use it as the start color
-	if effect.startOnCurrent {
+	if effect.captureNext {
 		sc := buf[0]
 		sc.A = 0xff // Avoid a 0 transparency (in the case of an uninitialized buffer) which makes go-colorful unhappy
 		effect.startColor = colorful.MakeColor(sc)
-		effect.startOnCurrent = false // Clear the flag to prevent this from being done again
+		effect.captureNext = false // Clear the flag to prevent this from being done again
 	}
 
 	elapsed := frameTime.Sub(effect.startTime)
 	completion := elapsed.Seconds() / effect.duration.Seconds()
 	//fxlog.Printf("Frame at %2.2f%%", completion*100.0)
 	//	currColorful := effect.startColor.BlendLab(effect.endColor, completion)
-	currColorful := effect.startColor.BlendLuv(effect.endColor, completion)
+	// currColorful := effect.startColor.BlendLuv(effect.endColor, completion)
+	currColorful := effect.startColor.BlendRgb(effect.endColor, completion)
 	currColor := colorfulToRGBA(currColorful)
 	for i := 0; i < len(buf); i++ {
 		buf[i] = currColor
@@ -109,7 +114,7 @@ func NewDimmingPulse(c color.Color, dimmingRatio float64, period time.Duration) 
 	black := colorful.Color{0.0, 0.0, 0.0}
 	// c2 := c1.BlendLuv(black, 1.0-dimmingRatio).Clamped()
 	c2 := c1.BlendRgb(black, 1.0-dimmingRatio).Clamped()
-	fxlog.Printf("Pulse colors: c1=%v, c2=%v\n", c1, c2)
+	// fxlog.Printf("Pulse colors: c1=%v, c2=%v\n", c1, c2)
 	return &Pulse{
 		c1:     c1,
 		c2:     c2,
