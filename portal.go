@@ -1,13 +1,14 @@
 package animation
 
 import (
+	"fmt"
 	"image/color"
 	"math/rand"
 	"strconv"
 	"time"
 
-	model "github.com/TeamNorCal/animation/model"
-	portalmodel "github.com/TeamNorCal/mawt/model"
+	"github.com/TeamNorCal/animation/model"
+	ingressModel "github.com/TeamNorCal/mawt/model"
 )
 
 // Enacapsulates a model of a portal from the perpsective of animations.
@@ -90,9 +91,41 @@ func NewPortal() *Portal {
 	}
 }
 
+func externalStatusToInternal(external *ingressModel.Status) *PortalStatus {
+	var faction Faction
+	switch external.Faction {
+	case "E":
+		faction = ENL
+	case "R":
+		faction = RES
+	case "N":
+		faction = NEU
+	default:
+		panic(fmt.Sprintf("Unexpected faction in external status: %s", external.Faction))
+	}
+
+	resos := make([]ResonatorStatus, numResos)
+	if len(external.Resonators) != numResos {
+		panic(fmt.Sprintf("Number of resonators in external status is %d, not the expected %d", len(external.Resonators), numResos))
+	}
+
+	for idx := range resos {
+		resos[idx] = ResonatorStatus{
+			Health: external.Resonators[idx].Health,
+			Level:  int(external.Resonators[idx].Level),
+		}
+	}
+
+	return &PortalStatus{
+		Faction:    faction,
+		Level:      external.Level,
+		Resonators: resos,
+	}
+}
+
 // UpdateFromCanonicalStatus updates the animation with the status of the portal,
 // using the canonical Status type
-func (p *Portal) UpdateFromCanonicalStatus(status *portalmodel.Status) {
+func (p *Portal) UpdateFromCanonicalStatus(status *ingressModel.Status) {
 	p.UpdateStatus(externalStatusToInternal(status))
 }
 

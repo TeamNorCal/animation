@@ -1,7 +1,10 @@
-package animationModel
+package model
 
 import (
 	"image/color"
+	"time"
+
+	ingressModel "github.com/TeamNorCal/mawt/model"
 )
 
 // OpcChannel represents a channel in Open Pixel Controller parlance. Channel is a logical entity;
@@ -13,4 +16,9 @@ type OpcChannel int
 type ChannelData struct {
 	ChannelNum OpcChannel
 	Data       []color.RGBA
+}
+
+type Portal interface {
+	UpdateFromCanonicalStatus(status *ingressModel.Status)
+	GetFrame(frameTime time.Time) []ChannelData
 }

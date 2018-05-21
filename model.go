@@ -2,10 +2,8 @@ package animation
 
 import (
 	"encoding/json"
-	"fmt"
 
-	model "github.com/TeamNorCal/animation/model"
-	portalmodel "github.com/TeamNorCal/mawt/model"
+	"github.com/TeamNorCal/animation/model"
 )
 
 // List of channels in the portal - 1-8 are resonators, and 9-24 are tower windows
@@ -186,36 +184,4 @@ type Portal struct {
 	seqBuf        seqCircBuf          // Queue of sequences to run on SequenceRunner
 	resonators    []animCircBuf       // Animations for resonators
 	frameBuf      []model.ChannelData // Frame buffers by universe
-}
-
-func externalStatusToInternal(external *portalmodel.Status) *PortalStatus {
-	var faction Faction
-	switch external.Faction {
-	case "E":
-		faction = ENL
-	case "R":
-		faction = RES
-	case "N":
-		faction = NEU
-	default:
-		panic(fmt.Sprintf("Unexpected faction in external status: %s", external.Faction))
-	}
-
-	resos := make([]ResonatorStatus, numResos)
-	if len(external.Resonators) != numResos {
-		panic(fmt.Sprintf("Number of resonators in external status is %d, not the expected %d", len(external.Resonators), numResos))
-	}
-
-	for idx := range resos {
-		resos[idx] = ResonatorStatus{
-			Health: external.Resonators[idx].Health,
-			Level:  int(external.Resonators[idx].Level),
-		}
-	}
-
-	return &PortalStatus{
-		Faction:    faction,
-		Level:      external.Level,
-		Resonators: resos,
-	}
 }
