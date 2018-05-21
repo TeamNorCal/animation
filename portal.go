@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	model "github.com/TeamNorCal/animation/model"
 	portalmodel "github.com/TeamNorCal/mawt/model"
 )
 
@@ -72,9 +73,9 @@ func NewPortal() *Portal {
 	for idx := range sizes {
 		sizes[idx] = windowSize
 	}
-	frameBuf := make([]ChannelData, numResos+numShaftWindows)
+	frameBuf := make([]model.ChannelData, numResos+numShaftWindows)
 	for idx := range frameBuf {
-		frameBuf[idx] = ChannelData{OpcChannel(idx + 1), make([]color.RGBA, windowSize)}
+		frameBuf[idx] = model.ChannelData{model.OpcChannel(idx + 1), make([]color.RGBA, windowSize)}
 	}
 	resoBufs := make([]animCircBuf, 0, numResos)
 	for idx := 0; idx < numResos; idx++ {
@@ -116,7 +117,7 @@ func (p *Portal) UpdateStatus(status *PortalStatus) {
 // Universes map
 // The returned buffers will typically be reused between frames, so callers
 // should not hold onto references to them nor modify them!
-func (p *Portal) GetFrame(frameTime time.Time) []ChannelData {
+func (p *Portal) GetFrame(frameTime time.Time) []model.ChannelData {
 	// Update resonators
 	for idx := 0; idx < numResos; idx++ {
 		p.getResoFrame(idx, frameTime)
