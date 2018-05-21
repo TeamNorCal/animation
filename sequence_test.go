@@ -9,6 +9,10 @@ import (
 type testAnimation uint8
 type multiRunAnimation int
 
+func (a *testAnimation) Start(startTime time.Time) {
+	// NOP
+}
+
 func (a *testAnimation) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, done bool) {
 
 	output = buf
@@ -20,6 +24,10 @@ func (a *testAnimation) Frame(buf []color.RGBA, frameTime time.Time) (output []c
 		count += 3
 	}
 	return output, true
+}
+
+func (a *multiRunAnimation) Start(startTime time.Time) {
+	// NOP
 }
 
 func (a *multiRunAnimation) Frame(buf []color.RGBA, frameTime time.Time) (output []color.RGBA, done bool) {
@@ -46,7 +54,7 @@ func TestSimpleSingleSequence(t *testing.T) {
 	const universeID uint = 3
 	ta := testAnimation(1)
 	s := &Step{UniverseID: universeID, Effect: &ta}
-	seq := Sequence{[]*Step{s}}
+	seq := NewSequence().AddInitialStep("first", s)
 	sr := NewSequenceRunner([]uint{1, 1, 1, 10})
 	startTime := time.Unix(0, 0)
 	sr.InitSequence(seq, startTime)
@@ -94,7 +102,7 @@ func TestTwoSimpleSequences(t *testing.T) {
 	s1 := &Step{UniverseID: 3, Effect: &ta1}
 	ta2 := testAnimation(31)
 	s2 := &Step{UniverseID: 1, Effect: &ta2}
-	seq := Sequence{[]*Step{s1, s2}}
+	seq := NewSequence().AddInitialStep("first", s1).AddInitialStep("second", s2)
 	sr := NewSequenceRunner([]uint{1, 6, 1, 10})
 	startTime := time.Unix(0, 0)
 	sr.InitSequence(seq, startTime)
@@ -157,7 +165,7 @@ func TestMultiRun(t *testing.T) {
 	s1 := &Step{UniverseID: 3, Effect: &ta1}
 	ta2 := multiRunAnimation(1)
 	s2 := &Step{UniverseID: 0, Effect: &ta2}
-	seq := Sequence{[]*Step{s1, s2}}
+	seq := NewSequence().AddInitialStep("first", s1).AddInitialStep("second", s2)
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -178,10 +186,12 @@ func TestMultiRun(t *testing.T) {
 
 func TestDelay(t *testing.T) {
 	ta1 := testAnimation(1)
-	s1 := &Step{UniverseID: 3, Effect: &ta1, Delay: 9 * time.Millisecond}
+	s1 := &Step{UniverseID: 3, Effect: &ta1}
 	ta2 := testAnimation(31)
 	s2 := &Step{UniverseID: 1, Effect: &ta2}
-	seq := Sequence{[]*Step{s1, s2}}
+	seq := NewSequence()
+	seq.AddStep("first", s1).AddInitialOperation(Operation{"first", 9 * time.Millisecond})
+	seq.AddInitialStep("second", s2)
 	sr := NewSequenceRunner([]uint{1, 6, 1, 10})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -214,11 +224,14 @@ func TestDelay(t *testing.T) {
 func TestScheduleAfter(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := &Step{UniverseID: 3, Effect: &ta2, StepID: 2}
+	s2 := &Step{UniverseID: 3, Effect: &ta2, Next: []Operation{Operation{"first", 1 * time.Millisecond}}}
 	// Not using a delay is dicey because the execution order in a single clock cycle
 	// is unpredictable
-	s1 := &Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Duration(1 * time.Millisecond)}
-	seq := Sequence{[]*Step{s1, s2}}
+	s1 := &Step{UniverseID: 1, Effect: &ta1}
+	seq := NewSequence()
+	seq.AddInitialStep("second", s2)
+	seq.AddStep("first", s1)
+
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -260,9 +273,11 @@ func TestScheduleAfter(t *testing.T) {
 func TestScheduleAfterPlusDelay(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := &Step{UniverseID: 3, Effect: &ta2, StepID: 2}
-	s1 := &Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 2, Delay: time.Millisecond * 2}
-	seq := Sequence{[]*Step{s1, s2}}
+	s2 := &Step{UniverseID: 3, Effect: &ta2, Next: []Operation{Operation{"s1", 2 * time.Millisecond}}}
+	s1 := &Step{UniverseID: 1, Effect: &ta1}
+	seq := NewSequence()
+	seq.AddInitialStep("s2", s2)
+	seq.AddStep("s1", s1)
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
@@ -294,10 +309,10 @@ func TestScheduleAfterPlusDelay(t *testing.T) {
 func TestScheduleAfterBadStepId(t *testing.T) {
 	ta1 := testAnimation(1)
 	ta2 := testAnimation(31)
-	s2 := &Step{UniverseID: 3, Effect: &ta2, StepID: 2}
-	// Step waiting on invalid step should be ignored with warning
-	s1 := &Step{UniverseID: 1, Effect: &ta1, OnCompletionOf: 9}
-	seq := Sequence{[]*Step{s1, s2}}
+	// Next operation with invalid step should be ignored with warning
+	s2 := &Step{UniverseID: 3, Effect: &ta2, Next: []Operation{Operation{"s9", 0}}}
+	s1 := &Step{UniverseID: 1, Effect: &ta1}
+	seq := NewSequence().AddInitialStep("s2", s2).AddStep("s1", s1)
 	sr := NewSequenceRunner([]uint{1, 1, 1, 1})
 	now := time.Unix(0, 0)
 	sr.InitSequence(seq, now)
