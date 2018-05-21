@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/TeamNorCal/portalmodel"
+	portalmodel "github.com/TeamNorCal/mawt/model"
 )
 
 // Enacapsulates a model of a portal from the perpsective of animations.

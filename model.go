@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"image/color"
 
-	"github.com/TeamNorCal/portalmodel"
+	portalmodel "github.com/TeamNorCal/mawt/model"
 )
 
 // OpcChannel represents a channel in Open Pixel Controller parlance. Channel is a logical entity;
