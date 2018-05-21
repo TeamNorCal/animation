@@ -109,9 +109,6 @@ func externalStatusToInternal(external *ingressModel.Status) (status *PortalStat
 	}
 
 	resos := make([]ResonatorStatus, numResos)
-	if len(external.Resonators) != numResos {
-		panic(fmt.Sprintf("Number of resonators in external status is %d, not the expected %d", len(external.Resonators), numResos))
-	}
 	numResosInStatus := len(external.Resonators)
 
 	for idx := range resos {
