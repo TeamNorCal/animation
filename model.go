@@ -75,8 +75,9 @@ func (msg *PortalStatus) deepCopy() (cpy *PortalStatus) {
 
 // PortalStatus encapsulates the status of the portal
 type PortalStatus struct {
-	Faction    Faction           // Owning faction
-	Level      float32           // Portal level, 0-8 (floating point, because average of resonator levels)
+	Faction    Faction // Owning faction
+	Level      float32 // Portal level, 0-8 (floating point, because average of resonator levels)
+	Health     float32
 	Resonators []ResonatorStatus // Array of 8 resonators, level 0 (undeployed) - 8
 }
 

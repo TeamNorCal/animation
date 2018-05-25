@@ -97,7 +97,7 @@ func NewPortal() *Portal {
 		resoBufs = append(resoBufs, newAnimCircBuf())
 	}
 	return &Portal{
-		currentStatus: &PortalStatus{NEU, 0.0, make([]ResonatorStatus, numResos)},
+		currentStatus: &PortalStatus{NEU, 0.0, 0.0, make([]ResonatorStatus, numResos)},
 		sr:            NewSequenceRunner(sizes),
 		seqBuf:        newSeqCircBuf(),
 		resonators:    resoBufs,
@@ -109,6 +109,7 @@ func externalStatusToInternal(external *ingressModel.Status) (status *PortalStat
 	status = &PortalStatus{
 		Faction:    NEU,
 		Level:      external.Level,
+		Health:     external.Health,
 		Resonators: make([]ResonatorStatus, numResos),
 	}
 
@@ -187,6 +188,10 @@ func (p *Portal) GetFrame(frameTime time.Time) []model.ChannelData {
 	seqDone := p.sr.ProcessFrame(frameTime)
 	for idx := 0; idx < numShaftWindows; idx++ {
 		p.frameBuf[numResos+idx].Data = p.sr.UniverseData(uint(idx))
+		// Scale owned portal's brightness by health, to within the top half of the brightness range
+		if p.currentStatus.Faction != NEU {
+			applyBrightness(p.frameBuf[numResos+idx].Data, p.currentStatus.Health/200.0+0.5)
+		}
 	}
 	if seqDone {
 		if nextSeq := p.seqBuf.dequeue(); nextSeq != nil {
@@ -310,7 +315,6 @@ func (p *Portal) updatePortal(newStatus *PortalStatus) {
 			updateHoldTime(&p.sr.currSeq, time.Duration(125.0*newStatus.Level)*time.Millisecond)
 		}
 	}
-	// applyBrightness(p.frameBuf[index].Data, p.currentStatus.Resonators[index].Health/100.0)
 }
 
 func createWindowFadeInOut(stepMap map[string]*Step, uniID int, color uint32, holdTime time.Duration) {
