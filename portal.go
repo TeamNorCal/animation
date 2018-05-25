@@ -55,7 +55,7 @@ var resonatorLevelColors = []uint32{
 }
 
 func init() {
-	logger.Println("Initializing...")
+	// logger.Println("Initializing...")
 	// Set up universes
 	Universes = make(map[string]Universe)
 	idx := 0
@@ -353,7 +353,7 @@ func (p *Portal) updateResonator(index int, newStatus *ResonatorStatus) {
 			// Clear current animations, then fade to new nominal reso color and pulse
 			resoColor := resonatorLevelColors[newStatus.Level]
 			p.resonators[index].clear()
-			logger.Printf("Enqueuing 2 animations for index %d\n", index)
+			// logger.Printf("Enqueuing 2 animations for index %d\n", index)
 			p.resonators[index].enqueue(NewInterpolateToHexRGB(resoColor, time.Second))
 			p.resonators[index].enqueue(NewDimmingPulse(RGBAFromRGBHex(resoColor), resoDimRatio, resoPulseDuration))
 		}
@@ -379,7 +379,7 @@ func (p *Portal) getResoFrame(index int, frameTime time.Time) {
 		} else {
 			// More animations queued - move on to the Next
 			// We know it's > 1 because we returned early if there were 0
-			logger.Printf("Dequeuing animation for index %d\n", index)
+			// logger.Printf("Dequeuing animation for index %d\n", index)
 			p.resonators[index].dequeue()
 			p.resonators[index].peek().Start(frameTime)
 		}
